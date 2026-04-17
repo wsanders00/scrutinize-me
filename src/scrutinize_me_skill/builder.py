@@ -9,6 +9,7 @@ from scrutinize_me_skill import __version__
 
 
 SKILL_NAME = "scrutinize-me"
+ALLOWED_SKILL_TOP_LEVEL = {"SKILL.md", "agents", "references", "evals"}
 SEMVER_PATTERN = re.compile(
     r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
     r"(?:-(?:0|[1-9A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9A-Za-z-][0-9A-Za-z-]*))*)?"
@@ -18,6 +19,29 @@ SEMVER_PATTERN = re.compile(
 
 def skill_source_dir() -> Path:
     return Path(__file__).resolve().parent / "skill" / SKILL_NAME
+
+
+def iter_shippable_skill_files(source_root: Path | None = None) -> list[tuple[Path, str]]:
+    root = (source_root or skill_source_dir()).resolve()
+    shipped: list[tuple[Path, str]] = []
+
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink():
+            raise ValueError(f"Symlinks are not allowed in the shipped skill payload: {path}")
+        if not path.is_file():
+            continue
+
+        rel = path.relative_to(root)
+        if rel.parts[0] not in ALLOWED_SKILL_TOP_LEVEL:
+            continue
+        if any(part.startswith(".") for part in rel.parts):
+            continue
+        if "__pycache__" in rel.parts or path.suffix == ".pyc":
+            continue
+
+        shipped.append((path, rel.as_posix()))
+
+    return shipped
 
 
 def validate_semver(version: str) -> str:
@@ -62,8 +86,7 @@ def build_release_zip(output_dir: Path, version: str | None = None, release_tag:
     artifact = output_dir / f"{SKILL_NAME}-{normalized_version}.zip"
 
     with ZipFile(artifact, "w", compression=ZIP_DEFLATED) as archive:
-        for path in sorted(source_root.rglob("*")):
-            if path.is_file():
-                archive.write(path, arcname=f"{SKILL_NAME}/{path.relative_to(source_root)}")
+        for path, relative in iter_shippable_skill_files(source_root):
+            archive.write(path, arcname=f"{SKILL_NAME}/{relative}")
 
     return artifact

@@ -1,7 +1,8 @@
-from pathlib import Path
 import sys
 import tempfile
 import unittest
+from pathlib import Path
+from unittest import mock
 import zipfile
 
 
@@ -35,6 +36,19 @@ class VersioningTests(unittest.TestCase):
 
 
 class ReleaseBundleTests(unittest.TestCase):
+    def _make_skill_root(self, root: Path) -> Path:
+        skill_root = root / "scrutinize-me"
+        (skill_root / "agents").mkdir(parents=True, exist_ok=True)
+        (skill_root / "evals").mkdir(parents=True, exist_ok=True)
+        (skill_root / "references").mkdir(parents=True, exist_ok=True)
+        (skill_root / "SKILL.md").write_text("# Skill\n", encoding="utf-8")
+        (skill_root / "agents" / "openai.yaml").write_text("model: gpt\n", encoding="utf-8")
+        (skill_root / "evals" / "evals.json").write_text("{}", encoding="utf-8")
+        (skill_root / "references" / "reviewer-personas.md").write_text(
+            "# Personas\n", encoding="utf-8"
+        )
+        return skill_root
+
     def test_materialize_skill_copies_agent_skill_layout(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             export_root = Path(tmp_dir) / ".agents" / "skills"
@@ -66,6 +80,34 @@ class ReleaseBundleTests(unittest.TestCase):
             self.assertIn("scrutinize-me/references/orchestrator-playbook.md", archive_names)
             self.assertIn("scrutinize-me/references/output-schema.md", archive_names)
             self.assertIn("scrutinize-me/references/review-template.md", archive_names)
+
+    def test_build_release_zip_rejects_symlinks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            skill_root = self._make_skill_root(root)
+            symlink_path = skill_root / "references" / "alias.md"
+            symlink_path.symlink_to(skill_root / "SKILL.md")
+
+            with mock.patch("scrutinize_me_skill.builder.skill_source_dir", return_value=skill_root):
+                with self.assertRaises(ValueError):
+                    build_release_zip(output_dir=root / "dist", version=__version__)
+
+    def test_build_release_zip_excludes_junk_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            skill_root = self._make_skill_root(root)
+            (skill_root / "notes.txt").write_text("junk", encoding="utf-8")
+            (skill_root / "references" / ".hidden.md").write_text("hidden", encoding="utf-8")
+
+            with mock.patch("scrutinize_me_skill.builder.skill_source_dir", return_value=skill_root):
+                artifact = build_release_zip(output_dir=root / "dist", version=__version__)
+
+            with zipfile.ZipFile(artifact) as archive:
+                archive_names = set(archive.namelist())
+
+            self.assertIn("scrutinize-me/SKILL.md", archive_names)
+            self.assertNotIn("scrutinize-me/notes.txt", archive_names)
+            self.assertNotIn("scrutinize-me/references/.hidden.md", archive_names)
 
 
 if __name__ == "__main__":
