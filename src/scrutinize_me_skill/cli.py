@@ -21,6 +21,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     export_cmd = subparsers.add_parser("export", help="Copy the skill into a discoverable skill directory.")
     export_cmd.add_argument("--target-root", type=Path, default=Path(".agents/skills"))
+    export_cmd.add_argument(
+        "--force",
+        action="store_true",
+        help="Replace an existing exported skill directory.",
+    )
 
     subparsers.add_parser("version", help="Print the package version.")
     return parser
@@ -40,7 +45,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "export":
-        destination = materialize_skill(args.target_root)
+        destination = materialize_skill(args.target_root, force=args.force)
         print(destination)
         return 0
 

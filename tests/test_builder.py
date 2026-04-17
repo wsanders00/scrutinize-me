@@ -63,6 +63,63 @@ class ReleaseBundleTests(unittest.TestCase):
             self.assertTrue((skill_dir / "references" / "orchestrator-playbook.md").exists())
             self.assertTrue((skill_dir / "references" / "output-schema.md").exists())
 
+    def test_materialize_skill_rejects_existing_destination_without_force(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            skill_root = self._make_skill_root(root / "source")
+            export_root = root / "exports"
+            destination = export_root / "scrutinize-me"
+            destination.mkdir(parents=True)
+
+            with mock.patch("scrutinize_me_skill.builder.skill_source_dir", return_value=skill_root):
+                with self.assertRaises(FileExistsError) as context:
+                    materialize_skill(export_root)
+
+            self.assertIn("rerun with --force", str(context.exception))
+
+    def test_materialize_skill_overwrites_existing_destination_with_force(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            skill_root = self._make_skill_root(root / "source")
+            export_root = root / "exports"
+            destination = export_root / "scrutinize-me"
+            destination.mkdir(parents=True)
+            stale_marker = destination / "stale.txt"
+            stale_marker.write_text("stale", encoding="utf-8")
+
+            with mock.patch("scrutinize_me_skill.builder.skill_source_dir", return_value=skill_root):
+                skill_dir = materialize_skill(export_root, force=True)
+
+            self.assertEqual(skill_dir, destination.resolve())
+            self.assertTrue((skill_dir / "SKILL.md").exists())
+            self.assertFalse(stale_marker.exists())
+
+    def test_materialize_skill_rejects_self_target_export(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            skill_root = self._make_skill_root(root)
+
+            with mock.patch("scrutinize_me_skill.builder.skill_source_dir", return_value=skill_root):
+                with self.assertRaises(ValueError) as context:
+                    materialize_skill(root)
+
+            self.assertIn("source directory", str(context.exception))
+
+    def test_materialize_skill_rejects_existing_destination_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            skill_root = self._make_skill_root(root / "source")
+            export_root = root / "exports"
+            export_root.mkdir(parents=True)
+            destination = export_root / "scrutinize-me"
+            destination.write_text("not a directory", encoding="utf-8")
+
+            with mock.patch("scrutinize_me_skill.builder.skill_source_dir", return_value=skill_root):
+                with self.assertRaises(ValueError) as context:
+                    materialize_skill(export_root)
+
+            self.assertIn("not a directory", str(context.exception))
+
     def test_build_release_zip_contains_skill_payload(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             artifact = build_release_zip(output_dir=Path(tmp_dir), version=__version__)
