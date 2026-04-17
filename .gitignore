@@ -1,0 +1,8 @@
+.agents/
+.worktrees/
+.venv/
+.venv312/
+ai/
+__pycache__/
+*.egg-info/
+dist/

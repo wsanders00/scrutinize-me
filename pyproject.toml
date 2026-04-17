@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scrutinize-me-skill"
+dynamic = ["version"]
+description = "Source-backed release tooling for the Scrutinize Me agent skill."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+scrutinize-me = "scrutinize_me_skill.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.dynamic]
+version = {attr = "scrutinize_me_skill.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+scrutinize_me_skill = ["skill/**/*"]

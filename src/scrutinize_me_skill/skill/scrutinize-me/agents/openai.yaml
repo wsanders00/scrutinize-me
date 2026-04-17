@@ -1,0 +1,6 @@
+interface:
+  display_name: "Scrutinize Me"
+  short_description: "Parallel, risk-first code review"
+  default_prompt: "Use $scrutinize-me to review this change with specialized reviewers and return only concrete findings."
+policy:
+  allow_implicit_invocation: true

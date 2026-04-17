@@ -1,0 +1,47 @@
+[
+  {
+    "name": "default-five-reviewers",
+    "prompt": "Use $scrutinize-me to review this backend pull request. You are the main harness orchestrator. Run the five core reviewer personas in parallel, then return one merged review.",
+    "checks": [
+      "The orchestrator selects correctness, security, performance and reliability, architecture and maintainability, and contracts and data reviewers",
+      "The final answer includes a merge recommendation and deduplicated findings",
+      "The output separates must-fix issues from follow-up work"
+    ]
+  },
+  {
+    "name": "auth-change-adds-adversarial-review",
+    "prompt": "Use $scrutinize-me to review this authentication and admin-endpoint change. You are the main harness orchestrator. Run the default five reviewers and add the adversarial reviewer because the diff touches auth and privileged actions.",
+    "checks": [
+      "The adversarial reviewer is added when auth or admin behavior is in scope",
+      "The final review calls out abuse paths or privilege-escalation risk when present",
+      "The merged output still avoids duplicate findings"
+    ]
+  },
+  {
+    "name": "api-change-adds-regression-review",
+    "prompt": "Use $scrutinize-me to review this API and default-value change. You are the main harness orchestrator. Run the default five reviewers and add the regression reviewer because serialized responses and defaults changed.",
+    "checks": [
+      "The regression reviewer is added for API, schema, or default changes",
+      "Behavior changes are separated into intended changes versus suspected regressions",
+      "Suggested tests include cases that lock behavior before merge"
+    ]
+  },
+  {
+    "name": "large-refactor-adds-test-quality-review",
+    "prompt": "Use $scrutinize-me to review this large refactor with broad test edits. You are the main harness orchestrator. Run the default five reviewers and add the test-quality reviewer because coverage confidence matters for this change.",
+    "checks": [
+      "The test-quality reviewer is added for large or test-heavy changes",
+      "Coverage gaps and brittle tests are surfaced separately from code findings",
+      "The final output stays concise and action-oriented"
+    ]
+  },
+  {
+    "name": "clean-refactor-no-findings",
+    "prompt": "Use $scrutinize-me to review this small mechanical refactor. You are the main harness orchestrator. Run the default five reviewers, synthesize the results, and say explicitly if there are no findings that block merge.",
+    "checks": [
+      "The response can explicitly report no findings",
+      "Residual risk or testing gaps are still mentioned",
+      "The output does not invent issues to fill space"
+    ]
+  }
+]
