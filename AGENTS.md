@@ -3,7 +3,7 @@
 This repo packages a Codex skill. The source of truth for the skill content is under `src/scrutinize_me_skill/skill/scrutinize-me/`. Treat generated exports and build artifacts as outputs, not edit targets.
 
 ## Project Structure & Module Organization
-The repository now uses a `src/` layout. Core packaging and release logic live in `src/scrutinize_me_skill/`. The skill payload itself lives in `src/scrutinize_me_skill/skill/scrutinize-me/` with `SKILL.md`, `agents/openai.yaml`, `references/`, and `evals/`. `multi-agent-code-review-template.md` is the human-readable source template for reviewer personas and orchestration rules. Keep unit tests in `tests/`, CI and release automation in `.github/workflows/`, and high-level project docs at the root.
+The repository now uses a `src/` layout. Core packaging and release logic live in `src/scrutinize_me_skill/`. The skill payload itself lives in `src/scrutinize_me_skill/skill/scrutinize-me/` with `SKILL.md`, `agents/openai.yaml`, `references/`, and `evals/`. Treat that directory as the only authoring source for shipped skill behavior. Keep unit tests in `tests/`, CI and release automation in `.github/workflows/`, and high-level project docs at the root.
 
 ## Documentation & Local-Only Policy
 Keep contributor-facing docs intentional and reviewable:
@@ -27,7 +27,7 @@ Run `git diff --check` before opening a PR to catch whitespace and patch formatt
 When changing what end users experience as "the scrutinize-me skill", treat the skill payload as the authoring source and verify the generated outputs:
 
 1. Edit source content under `src/scrutinize_me_skill/skill/scrutinize-me/`.
-2. If you change the reviewer personas or orchestration rules, update `multi-agent-code-review-template.md` (the human-readable source template) and ensure the packaged skill content stays in sync with it.
+2. Keep the skill references under `src/scrutinize_me_skill/skill/scrutinize-me/references/` aligned with the top-level `SKILL.md`.
 3. Regenerate a local export with `python3 -m scrutinize_me_skill export --target-root .agents/skills` and sanity-check the exported skill content reflects your changes.
 4. If the routing, prompts, or expected behavior changes materially, update `src/scrutinize_me_skill/skill/scrutinize-me/evals/evals.json` so the packaged skill continues to have realistic review prompts and cases.
 5. Run the unit suite (`python3 -m unittest discover -s tests -v`) before opening a PR.

@@ -8,7 +8,6 @@ The key idea is that the *main harness* is the **orchestrator**: it selects revi
 
 - `src/scrutinize_me_skill/`: Python packaging, CLI entry points, and release bundling logic
 - `src/scrutinize_me_skill/skill/scrutinize-me/`: shipped skill payload, including `SKILL.md`, harness metadata, references, and evals
-- `multi-agent-code-review-template.md`: reusable source template for reviewer personas and orchestration rules
 - `tests/`: unit coverage for export, build, and release/version invariants
 - `.github/workflows/`: CI and tag-driven release automation
 
@@ -24,12 +23,9 @@ At a high level:
 
 If your harness supports it, the skill is designed to be invoked as `$scrutinize-me` (see `agents/openai.yaml`).
 
-## Template vs Packaged Skill
+## Skill Source Of Truth
 
-There are two “sources” in this repo, with different purposes:
-
-- `multi-agent-code-review-template.md` is the human-readable, reusable template for personas and orchestration rules.
-- `src/scrutinize_me_skill/skill/scrutinize-me/` is the **source of truth** for what gets exported/bundled and shipped as the skill.
+`src/scrutinize_me_skill/skill/scrutinize-me/` is the only source of truth for what gets exported, bundled, and shipped as the skill.
 
 The packaged skill’s operational docs are under:
 
@@ -119,6 +115,7 @@ Releases are tag-driven via GitHub Actions (`.github/workflows/release.yml`):
 - `src/scrutinize_me_skill/skill/scrutinize-me/references/orchestrator-playbook.md`: reviewer selection, triggers, synthesis rules.
 - `src/scrutinize_me_skill/skill/scrutinize-me/references/reviewer-personas.md`: persona prompts and scope bans.
 - `src/scrutinize_me_skill/skill/scrutinize-me/references/output-schema.md`: required structured output shapes.
+- `src/scrutinize_me_skill/skill/scrutinize-me/references/review-template.md`: compact reviewer dispatch and synthesis prompt templates.
 - `src/scrutinize_me_skill/skill/scrutinize-me/agents/openai.yaml`: harness-facing metadata (display name, default prompt, implicit invocation policy).
 - `src/scrutinize_me_skill/builder.py`: export and release zip implementation.
 - `tests/`: validates the bundle/export/release invariants.
