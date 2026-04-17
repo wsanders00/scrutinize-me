@@ -1,29 +1,124 @@
 # scrutinize-me
 
-`scrutinize-me` is a source-backed Agent Skills repository for orchestrated multi-agent code review. The reusable source template lives in `multi-agent-code-review-template.md`, while the distributable skill source of truth lives under `src/`. The packaged skill teaches the main harness to act as the orchestrator, dispatch one subagent per reviewer persona, and synthesize a single final review.
+This repository packages and releases the `scrutinize-me` Agent Skill for orchestrated, multi-agent code review.
 
-## Layout
+The key idea is that the *main harness* is the **orchestrator**: it selects reviewer personas, dispatches **one subagent per persona** (in parallel), requires a shared structured output shape, then synthesizes a single final review with a merge recommendation.
 
-- `src/scrutinize_me_skill/`: Python packaging and release tooling
-- `src/scrutinize_me_skill/skill/scrutinize-me/`: the skill payload (`SKILL.md`, references, evals, agent metadata)
-- `multi-agent-code-review-template.md`: source material for reviewer personas and orchestration rules
-- `tests/`: unit tests for versioning, export, and bundle creation
+## Repository Map
+
+- `src/scrutinize_me_skill/`: Python packaging, CLI entry points, and release bundling logic
+- `src/scrutinize_me_skill/skill/scrutinize-me/`: shipped skill payload, including `SKILL.md`, harness metadata, references, and evals
+- `multi-agent-code-review-template.md`: reusable source template for reviewer personas and orchestration rules
+- `tests/`: unit coverage for export, build, and release/version invariants
 - `.github/workflows/`: CI and tag-driven release automation
 
-## Local development
+## What The Skill Does
+
+The skill content lives at `src/scrutinize_me_skill/skill/scrutinize-me/` and is meant to be consumed by a subagent-capable harness.
+
+At a high level:
+
+- The orchestrator runs the **five core reviewers** by default: correctness, security, performance and reliability, architecture and maintainability, contracts and data.
+- Optional specialists (for example adversarial, regression, test-quality) are added only when the trigger matrix says they are warranted.
+- Subagents return findings in a shared JSON schema (`references/output-schema.md`), and the orchestrator deduplicates and resolves conflicts.
+
+If your harness supports it, the skill is designed to be invoked as `$scrutinize-me` (see `agents/openai.yaml`).
+
+## Template vs Packaged Skill
+
+There are two “sources” in this repo, with different purposes:
+
+- `multi-agent-code-review-template.md` is the human-readable, reusable template for personas and orchestration rules.
+- `src/scrutinize_me_skill/skill/scrutinize-me/` is the **source of truth** for what gets exported/bundled and shipped as the skill.
+
+The packaged skill’s operational docs are under:
+
+- `src/scrutinize_me_skill/skill/scrutinize-me/references/`: orchestrator playbook, persona prompts, schemas, compact templates
+- `src/scrutinize_me_skill/skill/scrutinize-me/evals/evals.json`: representative prompts/checks for smoke testing reviewer routing and synthesis behavior
+
+## Install And Use Locally
+
+This project is intentionally lightweight (standard library only). The Python package provides a CLI to export the skill into a discoverable directory and to build a release zip.
+
+### 1) Install the tooling (editable)
 
 ```bash
 python3 -m pip install -e .
-python3 -m unittest discover -s tests -v
-python3 -m scrutinize_me_skill export --target-root .agents/skills
-python3 -m scrutinize_me_skill build --output-dir dist
 ```
 
-When the skill is used in a subagent-capable harness, the main session should orchestrate reviewer subagents instead of doing one monolithic review pass.
+The package requires Python 3.11 or newer.
+
+### 2) Export the skill to a harness-discoverable directory
+
+Export copies the skill payload into `.agents/skills/scrutinize-me/` by default.
+
+```bash
+python3 -m scrutinize_me_skill export --target-root .agents/skills
+```
+
+Note: export replaces the destination directory if it already exists.
+
+### 3) Invoke in your harness
+
+How you run a skill depends on your harness, but the expected flow is:
+
+- Ensure the harness can discover skills under `.agents/skills/`
+- Provide the orchestrator with a review bundle (diff/changed files/intent/tests/etc.)
+- Ask the main session to use `$scrutinize-me` and dispatch persona subagents (the skill documents the exact workflow in `SKILL.md` and `references/`)
+
+Example prompt:
+
+```text
+Use $scrutinize-me to review this pull request. You are the orchestrator. Run the default reviewer personas in parallel, add any required specialist reviewers, then return one merged review with a merge recommendation.
+```
+
+## CLI Reference
+
+After installation you can use either the module entry point or the console script:
+
+```bash
+# Module entry point
+python3 -m scrutinize_me_skill version
+python3 -m scrutinize_me_skill export --target-root .agents/skills
+python3 -m scrutinize_me_skill build --output-dir dist
+
+# Console script (installed by the package)
+scrutinize-me version
+scrutinize-me export --target-root .agents/skills
+scrutinize-me build --output-dir dist
+```
+
+`build` produces a versioned artifact: `dist/scrutinize-me-<version>.zip`.
+
+## Tests
+
+Run the unit suite:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+The tests validate:
+
+- version/tag SemVer checks for releases
+- `export` materializes a correctly shaped Agent Skill directory
+- `build` zips the full skill payload (including `agents/`, `references/`, and `evals/`)
 
 ## Releases
 
-1. Update `src/scrutinize_me_skill/__init__.py` using SemVer.
-2. Run the test suite locally.
-3. Create an annotated tag such as `v0.1.0`.
-4. Push the tag. GitHub Actions will build `dist/scrutinize-me-0.1.0.zip` and attach it to the release.
+Releases are tag-driven via GitHub Actions (`.github/workflows/release.yml`):
+
+1. Update `src/scrutinize_me_skill/__init__.py` (`__version__`) using SemVer.
+2. Run `python3 -m unittest discover -s tests -v`.
+3. Create and push a tag like `v0.1.0` (must match `__version__`).
+4. CI builds `dist/*.zip` and attaches it to the GitHub Release.
+
+## Files That Matter Most
+
+- `src/scrutinize_me_skill/skill/scrutinize-me/SKILL.md`: the orchestrator contract and top-level workflow.
+- `src/scrutinize_me_skill/skill/scrutinize-me/references/orchestrator-playbook.md`: reviewer selection, triggers, synthesis rules.
+- `src/scrutinize_me_skill/skill/scrutinize-me/references/reviewer-personas.md`: persona prompts and scope bans.
+- `src/scrutinize_me_skill/skill/scrutinize-me/references/output-schema.md`: required structured output shapes.
+- `src/scrutinize_me_skill/skill/scrutinize-me/agents/openai.yaml`: harness-facing metadata (display name, default prompt, implicit invocation policy).
+- `src/scrutinize_me_skill/builder.py`: export and release zip implementation.
+- `tests/`: validates the bundle/export/release invariants.

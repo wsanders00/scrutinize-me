@@ -1,6 +1,8 @@
 # Multi-Agent Code Review Template
 
-Here’s a practical multi-agent review template you can reuse.
+This file is the human-readable source template for the reviewer personas and orchestration rules behind the packaged `scrutinize-me` skill. The shipped skill is built from `src/scrutinize_me_skill/skill/scrutinize-me/`, so contributors should update the packaged skill content there and keep this template in sync when persona or orchestration behavior changes.
+
+If you are just using the template outside the skill, you can copy/paste the agent prompts below as-is.
 
 ## Recommended agent set
 

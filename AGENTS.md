@@ -1,7 +1,17 @@
 # Repository Guidelines
 
+This repo packages a Codex skill. The source of truth for the skill content is under `src/scrutinize_me_skill/skill/scrutinize-me/`. Treat generated exports and build artifacts as outputs, not edit targets.
+
 ## Project Structure & Module Organization
 The repository now uses a `src/` layout. Core packaging and release logic live in `src/scrutinize_me_skill/`. The skill payload itself lives in `src/scrutinize_me_skill/skill/scrutinize-me/` with `SKILL.md`, `agents/openai.yaml`, `references/`, and `evals/`. `multi-agent-code-review-template.md` is the human-readable source template for reviewer personas and orchestration rules. Keep unit tests in `tests/`, CI and release automation in `.github/workflows/`, and high-level project docs at the root.
+
+## Documentation & Local-Only Policy
+Keep contributor-facing docs intentional and reviewable:
+
+- Put durable, contributor-facing docs in the repo root (for example `README.md`, `RELEASING.md`) or inside the skill payload at `src/scrutinize_me_skill/skill/scrutinize-me/` if they ship with the skill.
+- Do not hand-edit generated outputs (for example `.agents/skills/` exports or `dist/` build artifacts). Regenerate them via the module entry points.
+- Preserve the existing policy: keep `ai/` plans and non-essential generated docs local-only. Do not merge or push them unless they are actual repo or skill instructions meant to ship.
+- When you add or update docs, prefer short, task-oriented guidance and include the exact command(s) contributors should run.
 
 ## Build, Test, and Development Commands
 Use the Python module entry points and keep generated artifacts out of version control:
@@ -12,6 +22,15 @@ Use the Python module entry points and keep generated artifacts out of version c
 - `python3 -m scrutinize_me_skill build --output-dir dist` creates a release zip from the source skill.
 
 Run `git diff --check` before opening a PR to catch whitespace and patch formatting issues.
+
+## Skill Update Workflow
+When changing what end users experience as "the scrutinize-me skill", treat the skill payload as the authoring source and verify the generated outputs:
+
+1. Edit source content under `src/scrutinize_me_skill/skill/scrutinize-me/`.
+2. If you change the reviewer personas or orchestration rules, update `multi-agent-code-review-template.md` (the human-readable source template) and ensure the packaged skill content stays in sync with it.
+3. Regenerate a local export with `python3 -m scrutinize_me_skill export --target-root .agents/skills` and sanity-check the exported skill content reflects your changes.
+4. If the routing, prompts, or expected behavior changes materially, update `src/scrutinize_me_skill/skill/scrutinize-me/evals/evals.json` so the packaged skill continues to have realistic review prompts and cases.
+5. Run the unit suite (`python3 -m unittest discover -s tests -v`) before opening a PR.
 
 ## Coding Style & Naming Conventions
 Use Python 3.11+ and the standard library unless an external dependency is clearly justified. Follow PEP 8 with four-space indentation, snake_case module names, and small focused functions. Skill directories must use lowercase hyphenated names to match the Agent Skills spec, for example `scrutinize-me`.
