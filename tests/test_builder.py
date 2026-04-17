@@ -98,6 +98,11 @@ class ReleaseBundleTests(unittest.TestCase):
             skill_root = self._make_skill_root(root)
             (skill_root / "notes.txt").write_text("junk", encoding="utf-8")
             (skill_root / "references" / ".hidden.md").write_text("hidden", encoding="utf-8")
+            (skill_root / "references" / "__pycache__").mkdir()
+            (skill_root / "references" / "__pycache__" / "cached.py").write_text(
+                "print('cache')\n", encoding="utf-8"
+            )
+            (skill_root / "references" / "compiled.pyc").write_bytes(b"\x00\x00")
 
             with mock.patch("scrutinize_me_skill.builder.skill_source_dir", return_value=skill_root):
                 artifact = build_release_zip(output_dir=root / "dist", version=__version__)
@@ -108,6 +113,8 @@ class ReleaseBundleTests(unittest.TestCase):
             self.assertIn("scrutinize-me/SKILL.md", archive_names)
             self.assertNotIn("scrutinize-me/notes.txt", archive_names)
             self.assertNotIn("scrutinize-me/references/.hidden.md", archive_names)
+            self.assertNotIn("scrutinize-me/references/__pycache__/cached.py", archive_names)
+            self.assertNotIn("scrutinize-me/references/compiled.pyc", archive_names)
 
 
 if __name__ == "__main__":
