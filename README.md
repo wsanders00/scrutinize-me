@@ -32,6 +32,8 @@ The packaged skill’s operational docs are under:
 - `src/scrutinize_me_skill/skill/scrutinize-me/references/`: orchestrator playbook, persona prompts, schemas, compact templates
 - `src/scrutinize_me_skill/skill/scrutinize-me/evals/evals.json`: representative prompts/checks for smoke testing reviewer routing and synthesis behavior
 
+When you update reviewer personas, orchestration rules, or compact prompt templates, edit the maintained files under `src/scrutinize_me_skill/skill/scrutinize-me/references/` and keep them aligned with `SKILL.md`.
+
 ## Install And Use Locally
 
 This project is intentionally lightweight (standard library only). The Python package provides a CLI to export the skill into a discoverable directory and to build a release zip.
