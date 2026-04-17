@@ -66,13 +66,21 @@ def ensure_tag_matches_version(tag: str, version: str) -> str:
 
 def materialize_skill(target_root: Path, *, force: bool = False) -> Path:
     source_root = skill_source_dir().resolve()
-    target_root = target_root.resolve()
     destination = target_root / SKILL_NAME
+    resolved_destination = destination.resolve(strict=False)
 
-    if destination.resolve() == source_root:
+    try:
+        resolved_destination.relative_to(source_root)
+        is_within_source_root = True
+    except ValueError:
+        is_within_source_root = False
+
+    if is_within_source_root:
         raise ValueError(f"Refusing to export into the source directory: {destination}")
 
     if destination.exists():
+        if destination.is_symlink():
+            raise ValueError(f"Export destination is a symlink: {destination}")
         if not destination.is_dir():
             raise ValueError(f"Export destination exists and is not a directory: {destination}")
         if not force:

@@ -1,3 +1,4 @@
+import os
 import sys
 import tempfile
 import unittest
@@ -90,7 +91,7 @@ class ReleaseBundleTests(unittest.TestCase):
             with mock.patch("scrutinize_me_skill.builder.skill_source_dir", return_value=skill_root):
                 skill_dir = materialize_skill(export_root, force=True)
 
-            self.assertEqual(skill_dir, destination.resolve())
+            self.assertEqual(skill_dir, destination)
             self.assertTrue((skill_dir / "SKILL.md").exists())
             self.assertFalse(stale_marker.exists())
 
@@ -98,6 +99,12 @@ class ReleaseBundleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             skill_root = self._make_skill_root(root)
+
+            with mock.patch("scrutinize_me_skill.builder.skill_source_dir", return_value=skill_root):
+                with self.assertRaises(ValueError) as context:
+                    materialize_skill(skill_root)
+
+            self.assertIn("source directory", str(context.exception))
 
             with mock.patch("scrutinize_me_skill.builder.skill_source_dir", return_value=skill_root):
                 with self.assertRaises(ValueError) as context:
@@ -119,6 +126,41 @@ class ReleaseBundleTests(unittest.TestCase):
                     materialize_skill(export_root)
 
             self.assertIn("not a directory", str(context.exception))
+
+    def test_materialize_skill_rejects_existing_destination_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            skill_root = self._make_skill_root(root / "source")
+            export_root = root / "exports"
+            export_root.mkdir(parents=True)
+            destination = export_root / "scrutinize-me"
+            link_target = root / "link-target"
+            link_target.mkdir()
+            destination.symlink_to(link_target, target_is_directory=True)
+
+            with mock.patch("scrutinize_me_skill.builder.skill_source_dir", return_value=skill_root):
+                with self.assertRaises(ValueError) as context:
+                    materialize_skill(export_root)
+
+            self.assertIn("symlink", str(context.exception))
+
+    def test_materialize_skill_preserves_relative_destination_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            skill_root = self._make_skill_root(root / "source")
+            export_root = Path("exports")
+            cwd = Path.cwd()
+
+            try:
+                os.chdir(root)
+                with mock.patch("scrutinize_me_skill.builder.skill_source_dir", return_value=skill_root):
+                    skill_dir = materialize_skill(export_root)
+            finally:
+                os.chdir(cwd)
+
+            self.assertEqual(skill_dir, export_root / "scrutinize-me")
+            self.assertFalse(skill_dir.is_absolute())
+            self.assertTrue((root / skill_dir / "SKILL.md").exists())
 
     def test_build_release_zip_contains_skill_payload(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
