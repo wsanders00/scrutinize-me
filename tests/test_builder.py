@@ -95,6 +95,27 @@ class ReleaseBundleTests(unittest.TestCase):
             self.assertTrue((skill_dir / "SKILL.md").exists())
             self.assertFalse(stale_marker.exists())
 
+    def test_materialize_skill_preserves_existing_export_on_copy_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            skill_root = self._make_skill_root(root / "source")
+            export_root = root / "exports"
+            destination = export_root / "scrutinize-me"
+            destination.mkdir(parents=True)
+            existing_marker = destination / "existing.txt"
+            existing_marker.write_text("keep", encoding="utf-8")
+
+            with mock.patch("scrutinize_me_skill.builder.skill_source_dir", return_value=skill_root):
+                with mock.patch(
+                    "scrutinize_me_skill.builder.copy_shippable_skill_tree",
+                    side_effect=RuntimeError("boom"),
+                ):
+                    with self.assertRaises(RuntimeError):
+                        materialize_skill(export_root, force=True)
+
+            self.assertTrue(destination.exists())
+            self.assertTrue(existing_marker.exists())
+
     def test_materialize_skill_rejects_self_target_export(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)

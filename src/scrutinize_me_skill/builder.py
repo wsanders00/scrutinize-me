@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import shutil
 from pathlib import Path
+from uuid import uuid4
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from scrutinize_me_skill import __version__
@@ -42,6 +43,13 @@ def iter_shippable_skill_files(source_root: Path | None = None) -> list[tuple[Pa
         shipped.append((path, rel.as_posix()))
 
     return shipped
+
+
+def copy_shippable_skill_tree(source_root: Path, destination: Path) -> None:
+    for path, relative in iter_shippable_skill_files(source_root):
+        dest_path = destination / relative
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, dest_path)
 
 
 def validate_semver(version: str) -> str:
@@ -87,10 +95,36 @@ def materialize_skill(target_root: Path, *, force: bool = False) -> Path:
             raise FileExistsError(
                 f"Export destination already exists, rerun with --force: {destination}"
             )
-        shutil.rmtree(destination)
 
     target_root.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(source_root, destination)
+    staging_dir = target_root / f".{SKILL_NAME}-staging-{uuid4().hex}"
+    staging_dir.mkdir(parents=True, exist_ok=False)
+
+    try:
+        copy_shippable_skill_tree(source_root, staging_dir)
+    except Exception:
+        shutil.rmtree(staging_dir, ignore_errors=True)
+        raise
+
+    backup_dir: Path | None = None
+    try:
+        if destination.exists():
+            backup_dir = target_root / f".{SKILL_NAME}-backup-{uuid4().hex}"
+            destination.rename(backup_dir)
+        staging_dir.rename(destination)
+    except Exception:
+        if backup_dir and backup_dir.exists():
+            if destination.exists():
+                shutil.rmtree(destination)
+            backup_dir.rename(destination)
+        raise
+    else:
+        if backup_dir and backup_dir.exists():
+            shutil.rmtree(backup_dir)
+    finally:
+        if staging_dir.exists():
+            shutil.rmtree(staging_dir)
+
     return destination
 
 
