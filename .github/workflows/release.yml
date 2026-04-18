@@ -11,10 +11,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         with:
           python-version: "3.11"
       - run: python -m pip install -e .
@@ -22,6 +22,6 @@ jobs:
       - run: python -m pip install --force-reinstall .
       - run: python scripts/smoke_installed_package.py
       - run: python -m scrutinize_me_skill build --output-dir dist --release-tag "${GITHUB_REF_NAME}"
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         with:
           files: dist/*.zip
