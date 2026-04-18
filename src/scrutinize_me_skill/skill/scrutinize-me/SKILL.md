@@ -30,6 +30,7 @@ Progress:
 
 - The main harness must behave as the orchestrator, not as another reviewer persona.
 - Subagents generate persona-scoped findings; the orchestrator merges them into the final answer.
+- Reviewer subagents and the final orchestrated result must be raw JSON matching [references/output-schema.md](references/output-schema.md), with no markdown, code fences, or commentary outside the JSON object.
 - Lead with evidence-backed findings and a merge recommendation.
 - Separate must-fix issues from follow-up work, and explicitly call out reviewed areas with no major issues.
 - If no findings survive synthesis, say so directly and mention residual test or rollout risk.

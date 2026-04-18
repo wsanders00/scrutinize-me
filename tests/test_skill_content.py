@@ -1,6 +1,14 @@
 import json
 from pathlib import Path
+import re
+import sys
 import unittest
+
+SRC_ROOT = Path(__file__).resolve().parents[1] / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from scrutinize_me_skill import __version__
 
 
 SKILL_ROOT = (
@@ -81,6 +89,21 @@ class SkillContentTests(unittest.TestCase):
         self.assertIn("subagent", skill_text.lower())
         self.assertIn("main harness", skill_text.lower())
 
+    def test_skill_frontmatter_version_matches_package_version(self) -> None:
+        skill_text = (SKILL_ROOT / "SKILL.md").read_text()
+        frontmatter = skill_text.split("---", 2)[1]
+
+        name_match = re.search(r"^name:\s*(.+)$", frontmatter, re.MULTILINE)
+        version_match = re.search(
+            r"scrutinize_me_version:\s*\"([^\"]+)\"",
+            frontmatter,
+        )
+
+        self.assertIsNotNone(name_match)
+        self.assertIsNotNone(version_match)
+        self.assertEqual(name_match.group(1).strip(), "scrutinize-me")
+        self.assertEqual(version_match.group(1), __version__)
+
     def test_evals_cover_required_review_routing_cases(self) -> None:
         evals = json.loads((SKILL_ROOT / "evals" / "evals.json").read_text())
         eval_names = {entry["name"] for entry in evals}
@@ -94,6 +117,24 @@ class SkillContentTests(unittest.TestCase):
                 "clean-refactor-no-findings",
             }.issubset(eval_names)
         )
+
+    def test_evals_have_required_keys_and_non_empty_values(self) -> None:
+        evals = json.loads((SKILL_ROOT / "evals" / "evals.json").read_text())
+        names: set[str] = set()
+
+        for entry in evals:
+            self.assertEqual(set(entry), {"name", "prompt", "checks"})
+            self.assertTrue(entry["name"])
+            self.assertTrue(entry["prompt"])
+            self.assertIsInstance(entry["checks"], list)
+            self.assertTrue(entry["checks"])
+
+            for check in entry["checks"]:
+                self.assertIsInstance(check, str)
+                self.assertTrue(check)
+
+            self.assertNotIn(entry["name"], names)
+            names.add(entry["name"])
 
 
 if __name__ == "__main__":
