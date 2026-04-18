@@ -154,6 +154,43 @@ class ReleaseBundleTests(unittest.TestCase):
             self.assertTrue(existing_marker.exists())
             self.assertFalse(staging_path.exists())
 
+    def test_materialize_skill_ignores_backup_cleanup_failure_after_success(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            skill_root = self._make_skill_root(root / "source")
+            export_root = root / "exports"
+            destination = export_root / "scrutinize-me"
+            destination.mkdir(parents=True)
+            stale_marker = destination / "stale.txt"
+            stale_marker.write_text("stale", encoding="utf-8")
+
+            stage_uuid = uuid.UUID("00000000000000000000000000000001")
+            backup_uuid = uuid.UUID("00000000000000000000000000000002")
+            uuid_sequence = [stage_uuid, backup_uuid]
+            backup_path = export_root / f".{SKILL_NAME}-backup-{backup_uuid.hex}"
+            from scrutinize_me_skill import builder as builder_module
+            real_remove_tree = builder_module.remove_tree
+
+            def fake_uuid4() -> uuid.UUID:
+                return uuid_sequence.pop(0)
+
+            def fake_remove_tree(path: Path, *, ignore_errors: bool = False) -> None:
+                if Path(path) == backup_path:
+                    raise OSError("backup cleanup failed")
+                real_remove_tree(path, ignore_errors=ignore_errors)
+
+            with mock.patch("scrutinize_me_skill.builder.skill_source_dir", return_value=skill_root):
+                with mock.patch("scrutinize_me_skill.builder.uuid4", side_effect=fake_uuid4):
+                    with mock.patch(
+                        "scrutinize_me_skill.builder.remove_tree", side_effect=fake_remove_tree
+                    ):
+                        skill_dir = materialize_skill(export_root, force=True)
+
+            self.assertEqual(skill_dir, destination)
+            self.assertTrue((skill_dir / "SKILL.md").exists())
+            self.assertFalse(stale_marker.exists())
+            self.assertTrue(backup_path.exists())
+
     def test_materialize_skill_rejects_self_target_export(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
