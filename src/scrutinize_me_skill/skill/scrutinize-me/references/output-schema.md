@@ -53,6 +53,9 @@ Use these shapes to normalize subagent output before the orchestrator merges fin
 
 ## Response rules
 
+- Return raw JSON only.
+- Do not wrap the response in Markdown code fences.
+- Do not include headings, commentary, or any text outside the JSON object.
 - Every issue must include severity, location, impact, and the smallest fix.
 - Use `top_must_fix_issues` only for blockers.
 - Put speculative or lower-priority work in `important_follow_ups`.

@@ -41,10 +41,13 @@ This project is intentionally lightweight (standard library only). The Python pa
 ### 1) Install the tooling (editable)
 
 ```bash
+python3 -m venv .venv
+. .venv/bin/activate
 python3 -m pip install -e .
 ```
 
 The package requires Python 3.11 or newer.
+If your system Python is externally managed (PEP 668), use a virtual environment or pipx instead of installing into the system interpreter.
 
 ### 2) Export the skill to a harness-discoverable directory
 
@@ -54,7 +57,11 @@ Export copies the skill payload into `.agents/skills/scrutinize-me/` by default.
 python3 -m scrutinize_me_skill export --target-root .agents/skills
 ```
 
-Note: export replaces the destination directory if it already exists.
+If you need to replace an existing exported skill directory, rerun the command with `--force`:
+
+```bash
+python3 -m scrutinize_me_skill export --target-root .agents/skills --force
+```
 
 ### 3) Invoke in your harness
 
@@ -78,11 +85,13 @@ After installation you can use either the module entry point or the console scri
 # Module entry point
 python3 -m scrutinize_me_skill version
 python3 -m scrutinize_me_skill export --target-root .agents/skills
+python3 -m scrutinize_me_skill export --target-root .agents/skills --force
 python3 -m scrutinize_me_skill build --output-dir dist
 
 # Console script (installed by the package)
 scrutinize-me version
 scrutinize-me export --target-root .agents/skills
+scrutinize-me export --target-root .agents/skills --force
 scrutinize-me build --output-dir dist
 ```
 

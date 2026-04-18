@@ -16,10 +16,15 @@ Keep contributor-facing docs intentional and reviewable:
 ## Build, Test, and Development Commands
 Use the Python module entry points and keep generated artifacts out of version control:
 
+- `python3 -m venv .venv` creates a local virtual environment for contributor work.
+- `. .venv/bin/activate` activates the local virtual environment.
 - `python3 -m pip install -e .` installs the package in editable mode.
 - `python3 -m unittest discover -s tests -v` runs the unit suite.
 - `python3 -m scrutinize_me_skill export --target-root .agents/skills` materializes a repo-local skill for clients that discover `.agents/skills/`.
+- `python3 -m scrutinize_me_skill export --target-root .agents/skills --force` replaces an existing local skill export.
 - `python3 -m scrutinize_me_skill build --output-dir dist` creates a release zip from the source skill.
+
+If your system Python is externally managed (PEP 668), use a virtual environment or pipx instead of installing into the system interpreter.
 
 Run `git diff --check` before opening a PR to catch whitespace and patch formatting issues.
 
@@ -29,7 +34,7 @@ When changing what end users experience as "the scrutinize-me skill", treat the 
 1. Edit source content under `src/scrutinize_me_skill/skill/scrutinize-me/`.
 2. If you change reviewer personas, orchestration rules, or compact dispatch prompts, edit the canonical files under `src/scrutinize_me_skill/skill/scrutinize-me/references/`:
    `reviewer-personas.md`, `orchestrator-playbook.md`, and `review-template.md`. Keep those references aligned with the top-level `SKILL.md`.
-3. Regenerate a local export with `python3 -m scrutinize_me_skill export --target-root .agents/skills` and sanity-check the exported skill content reflects your changes.
+3. Regenerate a local export with `python3 -m scrutinize_me_skill export --target-root .agents/skills`. If you are replacing an existing local export, rerun with `--force`. Sanity-check the exported skill content reflects your changes.
 4. If the routing, prompts, or expected behavior changes materially, update `src/scrutinize_me_skill/skill/scrutinize-me/evals/evals.json` so the packaged skill continues to have realistic review prompts and cases.
 5. Run the unit suite (`python3 -m unittest discover -s tests -v`) before opening a PR.
 
