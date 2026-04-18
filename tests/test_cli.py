@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import io
-from contextlib import redirect_stdout
+import sys
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
+
+SRC_ROOT = Path(__file__).resolve().parents[1] / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
 
 from scrutinize_me_skill import __version__
 from scrutinize_me_skill import cli
@@ -34,10 +39,10 @@ class CliTest(TestCase):
         mock_materialize.assert_called_once_with(Path(".agents/skills"), force=False)
 
     def test_invalid_invocation_raises_system_exit(self):
-        buffer = io.StringIO()
+        stderr = io.StringIO()
 
         with self.assertRaises(SystemExit) as cm:
-            with redirect_stdout(buffer):
+            with redirect_stderr(stderr):
                 cli.main([])
 
         self.assertNotEqual(cm.exception.code, 0)
