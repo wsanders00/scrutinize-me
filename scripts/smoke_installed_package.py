@@ -16,6 +16,7 @@ EXPECTED_RELATIVE_FILES = (
     "agents/openai.yaml",
     "evals/evals.json",
     "references/orchestrator-playbook.md",
+    "references/output-schema.md",
     "references/review-template.md",
     "references/reviewer-personas.md",
 )
