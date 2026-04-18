@@ -911,6 +911,8 @@ class ReleaseBundleTests(unittest.TestCase):
 
             self.assertGreater(read_calls, 1)
             self.assertFalse(state_path.exists())
+            quarantined = list(export_root.glob(f".{SKILL_NAME}-export-state.invalid-*.json"))
+            self.assertEqual(quarantined, [])
     def test_materialize_skill_does_not_follow_state_file_symlink_on_write(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
