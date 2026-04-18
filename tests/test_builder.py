@@ -17,8 +17,10 @@ from scrutinize_me_skill.builder import (
     SKILL_NAME,
     build_release_zip,
     ensure_tag_matches_version,
+    iter_shippable_skill_files,
     materialize_skill,
     release_version_from_tag,
+    validate_semver,
 )
 
 
@@ -36,6 +38,30 @@ class VersioningTests(unittest.TestCase):
     def test_mismatched_tag_and_version_are_rejected(self) -> None:
         with self.assertRaises(ValueError):
             ensure_tag_matches_version("v9.9.9", __version__)
+
+    def test_validate_semver_accepts_valid_versions(self) -> None:
+        valid_versions = [
+            "0.1.0",
+            "1.0.0-alpha",
+            "1.0.0-alpha.1",
+            "1.0.0+build.1",
+            "2.10.3",
+        ]
+        for version in valid_versions:
+            with self.subTest(version=version):
+                self.assertEqual(validate_semver(version), version)
+
+    def test_validate_semver_rejects_invalid_versions(self) -> None:
+        invalid_versions = [
+            "1.0",
+            "01.0.0",
+            "1.0.0-",
+            "1.0.0+build^1",
+        ]
+        for version in invalid_versions:
+            with self.subTest(version=version):
+                with self.assertRaises(ValueError):
+                    validate_semver(version)
 
 
 class ReleaseBundleTests(unittest.TestCase):
@@ -310,6 +336,60 @@ class ReleaseBundleTests(unittest.TestCase):
             self.assertNotIn("scrutinize-me/references/.hidden.md", archive_names)
             self.assertNotIn("scrutinize-me/references/__pycache__/cached.py", archive_names)
             self.assertNotIn("scrutinize-me/references/compiled.pyc", archive_names)
+
+    def test_build_release_zip_rejects_file_output_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_path = Path(tmp_dir) / "dist"
+            output_path.write_text("not a dir", encoding="utf-8")
+
+            with self.assertRaises(ValueError) as context:
+                build_release_zip(output_dir=output_path, version=__version__)
+
+        self.assertIn("not a directory", str(context.exception))
+
+
+class ShippableFilesTests(unittest.TestCase):
+    def _create_skill_layout(self, root: Path) -> Path:
+        skill_root = root / "scrutinize-me"
+        (skill_root / "agents").mkdir(parents=True)
+        (skill_root / "evals").mkdir(parents=True)
+        (skill_root / "references").mkdir(parents=True)
+        (skill_root / "SKILL.md").write_text("# Skill\n", encoding="utf-8")
+        (skill_root / "agents" / "openai.yaml").write_text("model: gpt\n", encoding="utf-8")
+        config_dir = skill_root / "agents" / "config"
+        config_dir.mkdir(parents=True)
+        (config_dir / "override.json").write_text("{}\n", encoding="utf-8")
+        (skill_root / "evals" / "evals.json").write_text("{}\n", encoding="utf-8")
+        (skill_root / "references" / "reviewer-personas.md").write_text("# Personas\n", encoding="utf-8")
+        guide_dir = skill_root / "references" / "guide"
+        guide_dir.mkdir(parents=True)
+        (guide_dir / "deck.md").write_text("guide\n", encoding="utf-8")
+        (skill_root / "references" / "orchestrator-playbook.md").write_text("# Playbook\n", encoding="utf-8")
+        (skill_root / "references" / "review-template.md").write_text("# Template\n", encoding="utf-8")
+        (skill_root / "references" / "output-schema.md").write_text("schema\n", encoding="utf-8")
+        (skill_root / "references" / ".hidden").write_text("secret\n", encoding="utf-8")
+        (skill_root / "notes.txt").write_text("ignore\n", encoding="utf-8")
+        return skill_root
+
+    def test_iter_shippable_skill_files_returns_exact_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            skill_root = self._create_skill_layout(Path(tmp_dir))
+            shipped = iter_shippable_skill_files(skill_root)
+
+        relative_names = {rel for _, rel in shipped}
+        expected = {
+            "SKILL.md",
+            "agents/openai.yaml",
+            "agents/config/override.json",
+            "evals/evals.json",
+            "references/reviewer-personas.md",
+            "references/orchestrator-playbook.md",
+            "references/review-template.md",
+            "references/output-schema.md",
+            "references/guide/deck.md",
+        }
+
+        self.assertEqual(relative_names, expected)
 
 
 if __name__ == "__main__":
