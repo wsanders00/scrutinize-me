@@ -15,8 +15,8 @@ Focus on:
 Rules:
 - Do not comment outside your assigned scope.
 - Prefer confirmed issues over speculative ones.
-- Return findings using the shared schema in references/output-schema.md.
-- Return exactly one single valid JSON object matching references/output-schema.md. Do not include any prose outside the JSON object; keep all prose inside the schema-defined fields.
+- Return one single valid JSON object matching references/output-schema.md.
+- Do not include markdown, code fences, headings, or commentary outside the JSON object.
 ```
 
 For exact persona content, load `references/reviewer-personas.md`.
@@ -33,7 +33,8 @@ You have structured outputs from multiple specialized reviewer subagents. Your j
 - separate must-fix issues from follow-up work
 - produce one final merged review
 
-Use the final response shape from references/output-schema.md and return exactly one single valid JSON object matching references/output-schema.md for the orchestrated result, with no prose outside the object.
+Use the final response shape from references/output-schema.md and return one single valid JSON object matching references/output-schema.md for the orchestrated result.
+Do not include markdown, code fences, headings, or commentary outside the JSON object.
 ```
 
 For reviewer selection, optional reviewer triggers, and merge recommendation rules, load `references/orchestrator-playbook.md`.

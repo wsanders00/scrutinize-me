@@ -13,6 +13,15 @@ SKILL_ROOT = (
 
 
 class SkillContentTests(unittest.TestCase):
+    def _section_text(self, text: str, heading: str) -> str:
+        self.assertIn(heading, text, f"Missing heading {heading}")
+        section_start = text.index(heading)
+        next_heading_idx = text.find("\n### ", section_start + 1)
+        next_major_idx = text.find("\n## ", section_start + 1)
+        boundaries = [idx for idx in (next_heading_idx, next_major_idx) if idx != -1]
+        section_end = min(boundaries) if boundaries else len(text)
+        return text[section_start:section_end]
+
     def test_skill_references_orchestrator_docs(self) -> None:
         self.assertTrue((SKILL_ROOT / "references" / "reviewer-personas.md").exists())
         self.assertTrue((SKILL_ROOT / "references" / "orchestrator-playbook.md").exists())
@@ -30,18 +39,40 @@ class SkillContentTests(unittest.TestCase):
 
         for persona in core_personas:
             heading = f"### {persona}"
-            section_start = personas.index(heading)
-            next_core_idx = personas.find("\n### ", section_start + 1)
-            next_major_idx = personas.find("\n## ", section_start + 1)
-            boundaries = [idx for idx in (next_core_idx, next_major_idx) if idx != -1]
-            section_end = min(boundaries) if boundaries else len(personas)
-            section_text = personas[section_start:section_end]
-
+            section_text = self._section_text(personas, heading)
             self.assertIn("Output:", section_text, f"Missing Output block for {persona}")
             output_body = section_text.split("Output:", 1)[1]
-            self.assertIn("single valid JSON object", output_body)
+            self.assertIn("one single valid JSON object", output_body)
             self.assertIn("references/output-schema.md", output_body)
-            self.assertIn("Do not include any prose outside the JSON object", output_body)
+            self.assertIn("Do not include markdown, code fences, headings, or commentary", output_body)
+
+    def test_optional_persona_prompts_require_json_only_output(self) -> None:
+        personas = (SKILL_ROOT / "references" / "reviewer-personas.md").read_text()
+
+        for persona in [
+            "Adversarial reviewer",
+            "Regression reviewer",
+            "Test-quality reviewer",
+        ]:
+            heading = f"### {persona}"
+            section_text = self._section_text(personas, heading)
+            output_body = section_text.split("Output:", 1)[1]
+            self.assertIn("one single valid JSON object", output_body)
+            self.assertIn("references/output-schema.md", output_body)
+            self.assertIn("Do not include markdown, code fences, headings, or commentary", output_body)
+
+    def test_compact_templates_require_raw_json_only_output(self) -> None:
+        template_text = (SKILL_ROOT / "references" / "review-template.md").read_text()
+        schema_text = (SKILL_ROOT / "references" / "output-schema.md").read_text()
+
+        self.assertIn("Return one single valid JSON object", template_text)
+        self.assertIn(
+            "Do not include markdown, code fences, headings, or commentary outside the JSON object.",
+            template_text,
+        )
+        self.assertIn("Return raw JSON only.", schema_text)
+        self.assertIn("Do not wrap the response in Markdown code fences.", schema_text)
+        self.assertIn("Do not include headings, commentary, or any text outside the JSON object.", schema_text)
 
     def test_skill_text_makes_main_harness_the_orchestrator(self) -> None:
         skill_text = (SKILL_ROOT / "SKILL.md").read_text()

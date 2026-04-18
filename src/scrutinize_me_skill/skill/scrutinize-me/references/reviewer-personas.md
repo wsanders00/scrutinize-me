@@ -31,7 +31,8 @@ Rules:
   5. whether a test should be added
 
 Output:
-- Return a single valid JSON object that matches the reviewer result schema in references/output-schema.md. Do not include any prose outside the JSON object. Within that JSON object:
+- Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
+- Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
 - Summary: 2-4 sentences
 - Top issues: up to 5
 - Open questions: only if truly blocking
@@ -70,7 +71,8 @@ For each issue, include:
 6. whether mitigation belongs in code, config, or infra
 
 Output:
-- Return a single valid JSON object that matches the reviewer result schema in references/output-schema.md. Do not include any prose outside the JSON object. Within that JSON object:
+- Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
+- Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
 - Summary
 - Top issues: up to 5
 - Residual risks
@@ -110,7 +112,8 @@ For each issue, include:
 6. whether benchmarking/load test/chaos test is needed
 
 Output:
-- Return a single valid JSON object that matches the reviewer result schema in references/output-schema.md. Do not include any prose outside the JSON object. Within that JSON object:
+- Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
+- Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
 - Summary
 - Top issues: up to 5
 - Production-readiness notes
@@ -148,7 +151,8 @@ For each issue, include:
 6. whether this should block merge or be follow-up work
 
 Output:
-- Return a single valid JSON object that matches the reviewer result schema in references/output-schema.md. Do not include any prose outside the JSON object. Within that JSON object:
+- Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
+- Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
 - Summary
 - Top issues: up to 5
 - Suggested refactor follow-ups
@@ -187,7 +191,8 @@ For each issue, include:
 6. rollout or migration precaution needed
 
 Output:
-- Return a single valid JSON object that matches the reviewer result schema in references/output-schema.md. Do not include any prose outside the JSON object. Within that JSON object:
+- Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
+- Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
 - Summary
 - Top issues: up to 5
 - Rollout cautions
@@ -210,7 +215,8 @@ Look for:
 - ways a malicious or careless caller could cause damage
 
 Output:
-- Return a single valid JSON object that matches the reviewer result schema in references/output-schema.md. Do not include any prose outside the JSON object. Within that JSON object, describe only the 3 highest-risk break paths and include concrete reproduction ideas.
+- Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
+- Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object, describe only the 3 highest-risk break paths and include concrete reproduction ideas.
 ```
 
 ### Regression reviewer
@@ -227,7 +233,8 @@ Focus on:
 - removed edge-case handling
 
 Output:
-- Return a single valid JSON object that matches the reviewer result schema in references/output-schema.md. Do not include any prose outside the JSON object. Within that JSON object:
+- Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
+- Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
 - Intended behavior changes
 - Suspected unintended regressions
 - Tests needed to lock behavior
@@ -248,7 +255,8 @@ Focus on:
 - missing migration/rollback/load/security tests
 
 Output:
-- Return a single valid JSON object that matches the reviewer result schema in references/output-schema.md. Do not include any prose outside the JSON object. Within that JSON object:
+- Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
+- Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
 - Coverage gaps
 - Fragile tests
 - Highest-value tests to add first
