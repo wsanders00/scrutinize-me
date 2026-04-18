@@ -885,6 +885,23 @@ class ReleaseBundleTests(unittest.TestCase):
             quarantined = list(export_root.glob(f".{SKILL_NAME}-export-state.invalid-*.json"))
             self.assertEqual(len(quarantined), 1)
 
+    def test_materialize_skill_quarantines_non_regular_export_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            skill_root = self._make_skill_root(root / "source")
+            export_root = root / "exports"
+            export_root.mkdir(parents=True)
+            state_path = export_root / f".{SKILL_NAME}-export-state.json"
+            state_path.mkdir()
+
+            with mock.patch("scrutinize_me_skill.builder.skill_source_dir", return_value=skill_root):
+                skill_dir = materialize_skill(export_root)
+
+            self.assertTrue((skill_dir / "SKILL.md").exists())
+            self.assertFalse(state_path.exists())
+            quarantined = list(export_root.glob(f".{SKILL_NAME}-export-state.invalid-*.json"))
+            self.assertEqual(len(quarantined), 1)
+
     def test_recover_export_state_reads_until_eof(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             export_root = Path(tmp_dir)

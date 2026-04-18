@@ -156,7 +156,11 @@ def export_state_name() -> str:
     return f".{SKILL_NAME}-export-state.json"
 
 
-class ExportStateOversizeError(ValueError):
+class ExportStateInvalidError(ValueError):
+    pass
+
+
+class ExportStateOversizeError(ExportStateInvalidError):
     pass
 
 
@@ -166,6 +170,9 @@ def read_export_state_bytes(root_fd: int, state_name: str, state_path: Path) -> 
     except OSError as exc:
         raise ValueError(f"Invalid export state file: {state_path}") from exc
     try:
+        info = os.fstat(state_fd)
+        if not stat.S_ISREG(info.st_mode):
+            raise ExportStateInvalidError(f"Invalid export state file: {state_path}")
         chunks: list[bytes] = []
         total = 0
         while True:
@@ -576,7 +583,7 @@ def recover_export_state(target_root: Path, root_fd: int, destination_name: str)
 
     try:
         raw_state = read_export_state_bytes(root_fd, state_name, state_path)
-    except ExportStateOversizeError:
+    except ExportStateInvalidError:
         quarantine_export_state(root_fd)
         return
 
