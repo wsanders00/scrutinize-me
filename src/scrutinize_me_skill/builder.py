@@ -13,7 +13,7 @@ SKILL_NAME = "scrutinize-me"
 ALLOWED_SKILL_TOP_LEVEL = {"SKILL.md", "agents", "references", "evals"}
 SEMVER_PATTERN = re.compile(
     r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
-    r"(?:-(?:0|[1-9A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9A-Za-z-][0-9A-Za-z-]*))*)?"
+    r"(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?"
     r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
 )
 
@@ -166,7 +166,7 @@ def build_release_zip(output_dir: Path, version: str | None = None, release_tag:
         raise FileNotFoundError(f"Skill source directory not found: {source_root}")
 
     if output_dir.exists() and not output_dir.is_dir():
-        raise ValueError(f"Export output path exists and is not a directory: {output_dir}")
+        raise ValueError(f"Output path exists and is not a directory: {output_dir}")
 
     output_dir.mkdir(parents=True, exist_ok=True)
     artifact = output_dir / f"{SKILL_NAME}-{normalized_version}.zip"

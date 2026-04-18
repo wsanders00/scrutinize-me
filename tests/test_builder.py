@@ -44,6 +44,8 @@ class VersioningTests(unittest.TestCase):
             "0.1.0",
             "1.0.0-alpha",
             "1.0.0-alpha.1",
+            "1.0.0-0alpha",
+            "1.0.0-0A",
             "1.0.0+build.1",
             "2.10.3",
         ]
@@ -56,6 +58,7 @@ class VersioningTests(unittest.TestCase):
             "1.0",
             "01.0.0",
             "1.0.0-",
+            "1.0.0-01",
             "1.0.0+build^1",
         ]
         for version in invalid_versions:
