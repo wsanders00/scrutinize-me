@@ -2,6 +2,7 @@ import os
 import sys
 import tempfile
 import unittest
+import uuid
 from pathlib import Path
 from unittest import mock
 import zipfile
@@ -13,6 +14,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from scrutinize_me_skill import __version__
 from scrutinize_me_skill.builder import (
+    SKILL_NAME,
     build_release_zip,
     ensure_tag_matches_version,
     materialize_skill,
@@ -115,6 +117,42 @@ class ReleaseBundleTests(unittest.TestCase):
 
             self.assertTrue(destination.exists())
             self.assertTrue(existing_marker.exists())
+
+    def test_materialize_skill_restores_after_staging_rename_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            skill_root = self._make_skill_root(root / "source")
+            export_root = root / "exports"
+            destination = export_root / "scrutinize-me"
+            destination.mkdir(parents=True)
+            existing_marker = destination / "existing.txt"
+            existing_marker.write_text("keep", encoding="utf-8")
+
+            stage_uuid = uuid.UUID("00000000000000000000000000000001")
+            backup_uuid = uuid.UUID("00000000000000000000000000000002")
+            uuid_sequence = [stage_uuid, backup_uuid]
+            staging_path = export_root / f".{SKILL_NAME}-staging-{stage_uuid.hex}"
+
+            def fake_uuid4() -> uuid.UUID:
+                return uuid_sequence.pop(0)
+
+            def fake_rename(source: Path, target: Path) -> None:
+                if source == staging_path:
+                    raise RuntimeError("staging rename failed")
+                source.rename(target)
+
+            with mock.patch("scrutinize_me_skill.builder.skill_source_dir", return_value=skill_root):
+                with mock.patch("scrutinize_me_skill.builder.uuid4", side_effect=fake_uuid4):
+                    with mock.patch(
+                        "scrutinize_me_skill.builder.rename_path", side_effect=fake_rename
+                    ):
+                        with self.assertRaises(RuntimeError) as context:
+                            materialize_skill(export_root, force=True)
+
+            self.assertEqual(str(context.exception), "staging rename failed")
+            self.assertTrue(destination.exists())
+            self.assertTrue(existing_marker.exists())
+            self.assertFalse(staging_path.exists())
 
     def test_materialize_skill_rejects_self_target_export(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

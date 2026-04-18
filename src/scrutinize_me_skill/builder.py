@@ -52,6 +52,10 @@ def copy_shippable_skill_tree(source_root: Path, destination: Path) -> None:
         shutil.copy2(path, dest_path)
 
 
+def rename_path(source: Path, target: Path) -> None:
+    source.rename(target)
+
+
 def validate_semver(version: str) -> str:
     if not SEMVER_PATTERN.fullmatch(version):
         raise ValueError(f"Unsupported version '{version}'. Expected SemVer, for example 1.2.3.")
@@ -110,13 +114,27 @@ def materialize_skill(target_root: Path, *, force: bool = False) -> Path:
     try:
         if destination.exists():
             backup_dir = target_root / f".{SKILL_NAME}-backup-{uuid4().hex}"
-            destination.rename(backup_dir)
-        staging_dir.rename(destination)
-    except Exception:
+            rename_path(destination, backup_dir)
+        rename_path(staging_dir, destination)
+    except Exception as exc:
+        cleanup_exc: Exception | None = None
+        restore_exc: Exception | None = None
         if backup_dir and backup_dir.exists():
             if destination.exists():
-                shutil.rmtree(destination)
-            backup_dir.rename(destination)
+                try:
+                    if destination.is_dir():
+                        shutil.rmtree(destination)
+                    else:
+                        destination.unlink()
+                except Exception as err:
+                    cleanup_exc = err
+            try:
+                backup_dir.rename(destination)
+            except Exception as err:
+                restore_exc = err
+        extraneous_exc = cleanup_exc or restore_exc
+        if extraneous_exc:
+            raise exc from extraneous_exc
         raise
     else:
         if backup_dir and backup_dir.exists():
