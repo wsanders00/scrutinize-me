@@ -215,19 +215,32 @@ class SmokeInstalledPackageTests(unittest.TestCase):
                     return None
                 return args[index + 1]
 
+            def module_subcommand(args: list[str]) -> str | None:
+                if not args or args[0] != str(fake_python):
+                    return None
+                try:
+                    module_index = args.index("-m")
+                except ValueError:
+                    return None
+                if module_index + 2 >= len(args):
+                    return None
+                if args[module_index + 1] != "scrutinize_me_skill":
+                    return None
+                return args[module_index + 2]
+
             def fake_run_command(args: list[str]) -> str:
-                if args == [str(fake_python), "-m", "scrutinize_me_skill", "version"]:
+                if module_subcommand(args) == "version":
                     return installed_version
                 if args == [str(console_script), "version"]:
                     return installed_version
-                if args[:4] == [str(fake_python), "-m", "scrutinize_me_skill", "export"]:
+                if module_subcommand(args) == "export":
                     target_root = option_value(args, "--target-root")
                     if target_root is None:
                         raise AssertionError(f"Missing --target-root option: {args}")
                     export_root = Path(target_root)
                     self._write_exported_skill(export_root)
                     return str(export_root / smoke_installed_package.SKILL_NAME)
-                if args[:4] == [str(fake_python), "-m", "scrutinize_me_skill", "build"]:
+                if module_subcommand(args) == "build":
                     output_dir = option_value(args, "--output-dir")
                     if output_dir is None:
                         raise AssertionError(f"Missing --output-dir option: {args}")

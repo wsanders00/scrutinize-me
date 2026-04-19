@@ -18,6 +18,16 @@ SKILL_ROOT = (
     / "skill"
     / "scrutinize-me"
 )
+SHARED_ISSUE_KEYS = [
+    "severity",
+    "title",
+    "file",
+    "function",
+    "confidence",
+    "why_it_matters",
+    "smallest_fix",
+    "test_needed",
+]
 
 
 class SkillContentTests(unittest.TestCase):
@@ -29,6 +39,29 @@ class SkillContentTests(unittest.TestCase):
         boundaries = [idx for idx in (next_heading_idx, next_major_idx) if idx != -1]
         section_end = min(boundaries) if boundaries else len(text)
         return text[section_start:section_end]
+
+    def _output_body(self, text: str, heading: str) -> str:
+        section_text = self._section_text(text, heading)
+        self.assertIn("Output:", section_text, f"Missing Output block for {heading}")
+        return section_text.split("Output:", 1)[1]
+
+    def _assert_json_only_output_rules(self, text: str) -> None:
+        lowered = text.lower()
+        self.assertIn("references/output-schema.md", text)
+        self.assertRegex(lowered, r"return .*json (?:object|only)")
+        self.assertIn("do not include", lowered)
+        self.assertIn("markdown", lowered)
+        self.assertIn("code fences", lowered)
+        self.assertIn("commentary", lowered)
+        self.assertIn("outside the json object", lowered)
+
+    def _assert_shared_key_contract(self, text: str) -> None:
+        lowered = text.lower()
+        self.assertIn("references/output-schema.md", text)
+        if re.search(r"shared (?:required fields|issue keys)", lowered):
+            return
+        for key in SHARED_ISSUE_KEYS:
+            self.assertIn(key, text, f"Missing shared issue key {key}")
 
     def test_skill_references_orchestrator_docs(self) -> None:
         self.assertTrue((SKILL_ROOT / "references" / "reviewer-personas.md").exists())
@@ -46,13 +79,8 @@ class SkillContentTests(unittest.TestCase):
         ]
 
         for persona in core_personas:
-            heading = f"### {persona}"
-            section_text = self._section_text(personas, heading)
-            self.assertIn("Output:", section_text, f"Missing Output block for {persona}")
-            output_body = section_text.split("Output:", 1)[1]
-            self.assertIn("one single valid JSON object", output_body)
-            self.assertIn("references/output-schema.md", output_body)
-            self.assertIn("Do not include markdown, code fences, headings, or commentary", output_body)
+            output_body = self._output_body(personas, f"### {persona}")
+            self._assert_json_only_output_rules(output_body)
 
     def test_optional_persona_prompts_require_json_only_output(self) -> None:
         personas = (SKILL_ROOT / "references" / "reviewer-personas.md").read_text()
@@ -62,25 +90,55 @@ class SkillContentTests(unittest.TestCase):
             "Regression reviewer",
             "Test-quality reviewer",
         ]:
+            output_body = self._output_body(personas, f"### {persona}")
+            self._assert_json_only_output_rules(output_body)
+            self._assert_shared_key_contract(output_body)
+
+    def test_persona_prompts_reference_shared_issue_keys(self) -> None:
+        personas = (SKILL_ROOT / "references" / "reviewer-personas.md").read_text()
+
+        for persona in [
+            "Correctness",
+            "Security",
+            "Performance and reliability",
+            "Architecture and maintainability",
+            "Contracts, data, and migrations",
+        ]:
             heading = f"### {persona}"
             section_text = self._section_text(personas, heading)
-            output_body = section_text.split("Output:", 1)[1]
-            self.assertIn("one single valid JSON object", output_body)
-            self.assertIn("references/output-schema.md", output_body)
-            self.assertIn("Do not include markdown, code fences, headings, or commentary", output_body)
+            self._assert_shared_key_contract(section_text)
 
-    def test_compact_templates_require_raw_json_only_output(self) -> None:
+    def test_compact_templates_reference_schema_and_json_only_output_rules(self) -> None:
         template_text = (SKILL_ROOT / "references" / "review-template.md").read_text()
         schema_text = (SKILL_ROOT / "references" / "output-schema.md").read_text()
 
-        self.assertIn("Return one single valid JSON object", template_text)
-        self.assertIn(
-            "Do not include markdown, code fences, headings, or commentary outside the JSON object.",
-            template_text,
-        )
-        self.assertIn("Return raw JSON only.", schema_text)
-        self.assertIn("Do not wrap the response in Markdown code fences.", schema_text)
-        self.assertIn("Do not include headings, commentary, or any text outside the JSON object.", schema_text)
+        self._assert_json_only_output_rules(template_text)
+        self._assert_shared_key_contract(template_text)
+        for key in SHARED_ISSUE_KEYS:
+            self.assertIn(key, schema_text, f"Missing shared issue key {key} in output schema")
+
+        lowered_schema = schema_text.lower()
+        self.assertIn("raw json", lowered_schema)
+        self.assertIn("code fences", lowered_schema)
+        self.assertIn("outside the json object", lowered_schema)
+
+    def test_output_schema_documents_persona_specific_fields(self) -> None:
+        schema_text = (SKILL_ROOT / "references" / "output-schema.md").read_text()
+
+        for field in [
+            "attack_scenario",
+            "mitigation_scope",
+            "trigger_condition",
+            "likely_impact",
+            "affected_contract",
+            "breakage_scenario",
+            "rollout_caution",
+            "residual_risks",
+            "production_readiness_notes",
+            "suggested_refactor_follow_ups",
+            "rollout_cautions",
+        ]:
+            self.assertIn(field, schema_text)
 
     def test_skill_text_makes_main_harness_the_orchestrator(self) -> None:
         skill_text = (SKILL_ROOT / "SKILL.md").read_text()
