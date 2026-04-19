@@ -70,6 +70,10 @@ class VersioningTests(unittest.TestCase):
 
 
 class ReleaseBundleTests(unittest.TestCase):
+    def _assert_owner_only_dir(self, path: Path) -> None:
+        mode = path.stat().st_mode & 0o777
+        self.assertEqual(mode & 0o022, 0)
+
     def _make_skill_root(self, root: Path) -> Path:
         skill_root = root / "scrutinize-me"
         (skill_root / "agents").mkdir(parents=True, exist_ok=True)
@@ -118,6 +122,46 @@ class ReleaseBundleTests(unittest.TestCase):
             mode = (skill_dir / "SKILL.md").stat().st_mode & 0o777
             self.assertEqual(mode & 0o022, 0)
             self.assertEqual(mode & 0o600, 0o600)
+
+    def test_materialize_skill_creates_owner_only_directories_under_permissive_umask(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            export_root = Path(tmp_dir) / "outer" / "inner" / "exports"
+            original_umask = os.umask(0)
+            try:
+                materialize_skill(export_root)
+            finally:
+                os.umask(original_umask)
+
+            self._assert_owner_only_dir(export_root)
+            self._assert_owner_only_dir(export_root.parent)
+            self._assert_owner_only_dir(export_root.parent.parent)
+
+    def test_materialize_skill_creates_owner_only_staging_directory_under_permissive_umask(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            export_root = Path(tmp_dir) / "exports"
+            fixed_uuid = uuid.UUID("00000000000000000000000000000001")
+            staging_name = f".{SKILL_NAME}-staging-{fixed_uuid.hex}"
+            staging_dir = export_root / staging_name
+            original_umask = os.umask(0)
+            try:
+                with mock.patch("scrutinize_me_skill.builder.uuid4", return_value=fixed_uuid):
+                    with mock.patch(
+                        "scrutinize_me_skill.builder.copy_shippable_skill_tree",
+                        side_effect=RuntimeError("boom"),
+                    ):
+                        with mock.patch(
+                            "scrutinize_me_skill.builder.remove_entry_at",
+                            side_effect=lambda *args, **kwargs: None,
+                        ):
+                            with self.assertRaises(RuntimeError):
+                                materialize_skill(export_root)
+            finally:
+                os.umask(original_umask)
+
+            self.assertTrue(staging_dir.exists())
+            self._assert_owner_only_dir(staging_dir)
 
     def test_materialize_skill_rejects_existing_destination_without_force(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -448,6 +492,18 @@ class ReleaseBundleTests(unittest.TestCase):
             mode = artifact.stat().st_mode & 0o777
             self.assertEqual(mode & 0o022, 0)
             self.assertEqual(mode & 0o600, 0o600)
+
+    def test_build_release_zip_creates_owner_only_directories_under_permissive_umask(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_dir = Path(tmp_dir) / "outer" / "dist"
+            original_umask = os.umask(0)
+            try:
+                build_release_zip(output_dir=output_dir, version=__version__)
+            finally:
+                os.umask(original_umask)
+
+            self._assert_owner_only_dir(output_dir)
+            self._assert_owner_only_dir(output_dir.parent)
 
     def test_build_release_zip_rejects_missing_required_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

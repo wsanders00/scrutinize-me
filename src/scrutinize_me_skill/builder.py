@@ -300,7 +300,7 @@ def ensured_directory(path: Path, *, label: str):
     try:
         for part in parts:
             try:
-                os.mkdir(part, dir_fd=current_fd)
+                os.mkdir(part, 0o700, dir_fd=current_fd)
             except FileExistsError:
                 pass
             try:
@@ -404,7 +404,7 @@ def opened_parent_directory(root_fd: int, relative: str):
     try:
         for part in parts:
             try:
-                os.mkdir(part, dir_fd=current_fd)
+                os.mkdir(part, 0o700, dir_fd=current_fd)
             except FileExistsError:
                 pass
             try:
@@ -696,7 +696,7 @@ def materialize_skill(target_root: Path, *, force: bool = False) -> Path:
 
             staging_name = f".{SKILL_NAME}-staging-{uuid4().hex}"
             staging_dir = target_root / staging_name
-            os.mkdir(staging_name, dir_fd=root_fd)
+            os.mkdir(staging_name, 0o700, dir_fd=root_fd)
             backup_name = (
                 f".{SKILL_NAME}-backup-{uuid4().hex}" if destination_info is not None else None
             )
