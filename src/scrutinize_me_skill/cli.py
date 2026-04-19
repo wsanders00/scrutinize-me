@@ -16,8 +16,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     build_cmd = subparsers.add_parser("build", help="Create a versioned release zip.")
     build_cmd.add_argument("--output-dir", type=Path, default=Path("dist"))
-    build_cmd.add_argument("--version", default=__version__)
-    build_cmd.add_argument("--release-tag")
+    build_cmd.add_argument(
+        "--version",
+        default=__version__,
+        help="Expected package version; must match the installed package version.",
+    )
+    build_cmd.add_argument(
+        "--release-tag",
+        help="Optional release tag to validate against the installed package version.",
+    )
 
     export_cmd = subparsers.add_parser("export", help="Copy the skill into a discoverable skill directory.")
     export_cmd.add_argument("--target-root", type=Path, default=Path(".agents/skills"))

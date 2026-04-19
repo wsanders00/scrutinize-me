@@ -17,10 +17,22 @@ Use these shapes to normalize subagent output before the orchestrator merges fin
       "confidence": "high",
       "why_it_matters": "Any authenticated user can trigger an admin-only action.",
       "smallest_fix": "Add role check before executing deletion.",
-      "test_needed": "Integration test for non-admin access denial"
+      "test_needed": "Integration test for non-admin access denial",
+      "attack_scenario": "A non-admin caller invokes the admin endpoint directly.",
+      "mitigation_scope": "code",
+      "trigger_condition": "",
+      "likely_impact": "",
+      "affected_contract": "",
+      "breakage_scenario": "",
+      "rollout_caution": "",
+      "merge_blocking": true
     }
   ],
-  "open_questions": []
+  "open_questions": [],
+  "residual_risks": [],
+  "production_readiness_notes": [],
+  "suggested_refactor_follow_ups": [],
+  "rollout_cautions": []
 }
 ```
 
@@ -56,7 +68,9 @@ Use these shapes to normalize subagent output before the orchestrator merges fin
 - Return raw JSON only.
 - Do not wrap the response in Markdown code fences.
 - Do not include headings, commentary, or any text outside the JSON object.
-- Every issue must include severity, location, impact, and the smallest fix.
+- Every reviewer issue must include `severity`, `title`, `file`, `function`, `confidence`, `why_it_matters`, `smallest_fix`, and `test_needed`.
+- Use the optional issue fields when the assigned persona requires them: `attack_scenario`, `mitigation_scope`, `trigger_condition`, `likely_impact`, `affected_contract`, `breakage_scenario`, `rollout_caution`, and `merge_blocking`.
+- Use the optional top-level arrays when the assigned persona requires them: `residual_risks`, `production_readiness_notes`, `suggested_refactor_follow_ups`, and `rollout_cautions`.
 - Use `top_must_fix_issues` only for blockers.
 - Put speculative or lower-priority work in `important_follow_ups`.
 - If no blockers remain, the orchestrator may return `approve` or `approve with follow-ups`.

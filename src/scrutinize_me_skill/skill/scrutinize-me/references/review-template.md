@@ -16,6 +16,7 @@ Rules:
 - Do not comment outside your assigned scope.
 - Prefer confirmed issues over speculative ones.
 - Return one single valid JSON object matching references/output-schema.md.
+- Use the shared required fields and any persona-specific optional fields documented in references/output-schema.md instead of inventing ad hoc keys.
 - Do not include markdown, code fences, headings, or commentary outside the JSON object.
 ```
 

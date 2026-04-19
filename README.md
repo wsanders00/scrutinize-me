@@ -48,6 +48,7 @@ python3 -m pip install -e .
 
 The package requires Python 3.11 or newer.
 If your system Python is externally managed (PEP 668), use a virtual environment or pipx instead of installing into the system interpreter.
+`export` and `build` currently require a POSIX environment with `fcntl.flock`, `os.fwalk`, `os.O_DIRECTORY`, and `os.O_NOFOLLOW`; unsupported platforms fail fast with a clear runtime error.
 
 ### 2) Export the skill to a harness-discoverable directory
 
@@ -96,6 +97,7 @@ scrutinize-me build --output-dir dist
 ```
 
 `build` produces a versioned artifact: `dist/scrutinize-me-<version>.zip`.
+The build version is always the installed package version from `src/scrutinize_me_skill/__init__.py`; if you pass `--version` or `--release-tag`, they must match that package version.
 
 ## Tests
 

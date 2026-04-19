@@ -1,88 +1,174 @@
 from __future__ import annotations
 
-import re
-import shutil
+from contextlib import contextmanager
+import os
+import stat
 from pathlib import Path
 from uuid import uuid4
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from scrutinize_me_skill import __version__
-
-
-SKILL_NAME = "scrutinize-me"
-ALLOWED_SKILL_TOP_LEVEL = {"SKILL.md", "agents", "references", "evals"}
-SEMVER_PATTERN = re.compile(
-    r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
-    r"(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?"
-    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
+from scrutinize_me_skill import builder_platform as _builder_platform
+from scrutinize_me_skill import builder_state as _builder_state
+from scrutinize_me_skill import builder_transfer as _builder_transfer
+from scrutinize_me_skill.builder_fs import (
+    entry_exists,
+    ensured_directory,
+    held_export_lock,
+    lstat_entry,
+    opened_directory,
+    opened_directory_at,
+    opened_parent_directory,
+    remove_entry_at,
+    rename_entry,
+    replace_entry,
+    sync_tree_at,
+    write_all,
 )
+from scrutinize_me_skill.builder_platform import (
+    find_symlink_component,
+    trusted_symlink_scan_base,
+    validate_not_within_source,
+    validate_write_path,
+)
+from scrutinize_me_skill.builder_state import (
+    ExportStateInvalidError,
+    ExportStateOversizeError,
+    export_state_name,
+    export_state_path,
+    validated_export_state_name,
+)
+from scrutinize_me_skill.builder_transfer import (
+    ShippableFileSnapshot,
+    iter_shippable_skill_files,
+    skill_source_dir,
+    validate_skill_source,
+)
+from scrutinize_me_skill.builder_versioning import (
+    ensure_tag_matches_version,
+    normalize_build_version,
+    release_version_from_tag,
+    validate_semver,
+)
+from scrutinize_me_skill.manifest import SKILL_NAME
 
 
-def skill_source_dir() -> Path:
-    return Path(__file__).resolve().parent / "skill" / SKILL_NAME
+NOFOLLOW_FLAG = _builder_platform.NOFOLLOW_FLAG
+DIRECTORY_FLAG = _builder_platform.DIRECTORY_FLAG
+fcntl = _builder_platform.fcntl
+EXPORT_STATE_MAX_BYTES = _builder_state.EXPORT_STATE_MAX_BYTES
 
 
-def iter_shippable_skill_files(source_root: Path | None = None) -> list[tuple[Path, str]]:
-    root = (source_root or skill_source_dir()).resolve()
-    shipped: list[tuple[Path, str]] = []
-
-    for path in sorted(root.rglob("*")):
-        if path.is_symlink():
-            raise ValueError(f"Symlinks are not allowed in the shipped skill payload: {path}")
-        if not path.is_file():
-            continue
-
-        rel = path.relative_to(root)
-        if rel.parts[0] not in ALLOWED_SKILL_TOP_LEVEL:
-            continue
-        if any(part.startswith(".") for part in rel.parts):
-            continue
-        if "__pycache__" in rel.parts or path.suffix == ".pyc":
-            continue
-
-        shipped.append((path, rel.as_posix()))
-
-    return shipped
+def ensure_supported_platform() -> None:
+    _builder_platform.ensure_supported_platform(
+        os_module=os,
+        fcntl_module=fcntl,
+        directory_flag=DIRECTORY_FLAG,
+        nofollow_flag=NOFOLLOW_FLAG,
+    )
 
 
-def copy_shippable_skill_tree(source_root: Path, destination: Path) -> None:
-    for path, relative in iter_shippable_skill_files(source_root):
-        dest_path = destination / relative
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(path, dest_path)
+def read_export_state_bytes(root_fd: int, state_name: str, state_path: Path) -> bytes:
+    return _builder_state.read_export_state_bytes(
+        root_fd,
+        state_name,
+        state_path,
+        nofollow_flag=NOFOLLOW_FLAG,
+        os_module=os,
+    )
 
 
-def rename_path(source: Path, target: Path) -> None:
-    source.rename(target)
+def snapshot_shippable_skill_files(source_root: Path | None = None) -> list[ShippableFileSnapshot]:
+    return _builder_transfer.snapshot_shippable_skill_files(
+        source_root,
+        iter_files=iter_shippable_skill_files,
+    )
 
 
-def remove_tree(path: Path, *, ignore_errors: bool = False) -> None:
-    shutil.rmtree(path, ignore_errors=ignore_errors)
+@contextmanager
+def opened_snapshotted_file(snapshot: ShippableFileSnapshot):
+    with _builder_transfer.opened_snapshotted_file(
+        snapshot,
+        nofollow_flag=NOFOLLOW_FLAG,
+    ) as fd:
+        yield fd
 
 
-def validate_semver(version: str) -> str:
-    if not SEMVER_PATTERN.fullmatch(version):
-        raise ValueError(f"Unsupported version '{version}'. Expected SemVer, for example 1.2.3.")
-    return version
+def stream_fd_to_fd(source_fd: int, destination_fd: int, *, label: str) -> None:
+    _builder_transfer.stream_fd_to_fd(
+        source_fd,
+        destination_fd,
+        label=label,
+        write_chunk=write_all,
+    )
 
 
-def release_version_from_tag(tag: str) -> str:
-    if not tag.startswith("v"):
-        raise ValueError(f"Release tag '{tag}' must start with 'v'.")
-    return validate_semver(tag[1:])
+def stream_fd_to_writer(source_fd: int, writer, *, label: str) -> None:
+    _builder_transfer.stream_fd_to_writer(source_fd, writer, label=label)
 
 
-def ensure_tag_matches_version(tag: str, version: str) -> str:
-    normalized_version = validate_semver(version)
-    tag_version = release_version_from_tag(tag)
-    if tag_version != normalized_version:
-        raise ValueError(f"Tag {tag} does not match package version {normalized_version}.")
-    return normalized_version
+def copy_shippable_skill_tree(
+    source_root: Path,
+    destination: Path,
+    *,
+    destination_fd: int | None = None,
+) -> None:
+    _builder_transfer.copy_shippable_skill_tree(
+        source_root,
+        destination,
+        destination_fd=destination_fd,
+        snapshot_files=snapshot_shippable_skill_files,
+        open_snapshot=opened_snapshotted_file,
+        open_parent=opened_parent_directory,
+        ensure_directory=ensured_directory,
+        stream_to_fd=stream_fd_to_fd,
+        nofollow_flag=NOFOLLOW_FLAG,
+    )
+
+
+def write_export_state(root_fd: int, target_root: Path, *, staging_name: str, backup_name: str | None) -> None:
+    _builder_state.write_export_state(
+        root_fd,
+        target_root,
+        staging_name=staging_name,
+        backup_name=backup_name,
+        replace=replace_entry,
+        remove=remove_entry_at,
+        id_factory=uuid4,
+        nofollow_flag=NOFOLLOW_FLAG,
+        os_module=os,
+    )
+
+
+def clear_export_state(root_fd: int) -> None:
+    _builder_state.clear_export_state(root_fd, remove=remove_entry_at)
+
+
+def quarantine_export_state(root_fd: int) -> None:
+    _builder_state.quarantine_export_state(
+        root_fd,
+        replace=replace_entry,
+        id_factory=uuid4,
+        os_module=os,
+    )
+
+
+def recover_export_state(target_root: Path, root_fd: int, destination_name: str) -> None:
+    _builder_state.recover_export_state(
+        target_root,
+        root_fd,
+        destination_name,
+        read_bytes=read_export_state_bytes,
+        quarantine=quarantine_export_state,
+        clear=clear_export_state,
+    )
 
 
 def materialize_skill(target_root: Path, *, force: bool = False) -> Path:
-    source_root = skill_source_dir().resolve()
+    ensure_supported_platform()
+    source_root = validate_skill_source(skill_source_dir())
     destination = target_root / SKILL_NAME
+
+    validate_write_path(destination, label="Export destination")
     resolved_destination = destination.resolve(strict=False)
 
     try:
@@ -94,85 +180,132 @@ def materialize_skill(target_root: Path, *, force: bool = False) -> Path:
     if is_within_source_root:
         raise ValueError(f"Refusing to export into the source directory: {destination}")
 
-    if destination.exists():
-        if destination.is_symlink():
-            raise ValueError(f"Export destination is a symlink: {destination}")
-        if not destination.is_dir():
-            raise ValueError(f"Export destination exists and is not a directory: {destination}")
-        if not force:
-            raise FileExistsError(
-                f"Export destination already exists, rerun with --force: {destination}"
+    with ensured_directory(target_root, label="Export target root") as root_fd:
+        with held_export_lock(root_fd):
+            recover_export_state(target_root, root_fd, SKILL_NAME)
+
+            destination_info = lstat_entry(root_fd, SKILL_NAME)
+            if destination_info is not None:
+                if not stat.S_ISDIR(destination_info.st_mode):
+                    raise ValueError(f"Export destination exists and is not a directory: {destination}")
+                if not force:
+                    raise FileExistsError(
+                        f"Export destination already exists, rerun with --force: {destination}"
+                    )
+
+            staging_name = f".{SKILL_NAME}-staging-{uuid4().hex}"
+            staging_dir = target_root / staging_name
+            os.mkdir(staging_name, 0o700, dir_fd=root_fd)
+            backup_name = (
+                f".{SKILL_NAME}-backup-{uuid4().hex}" if destination_info is not None else None
             )
 
-    target_root.mkdir(parents=True, exist_ok=True)
-    staging_dir = target_root / f".{SKILL_NAME}-staging-{uuid4().hex}"
-    staging_dir.mkdir(parents=True, exist_ok=False)
+            try:
+                with opened_directory_at(
+                    root_fd,
+                    staging_name,
+                    label="Export staging directory",
+                ) as staging_fd:
+                    copy_shippable_skill_tree(
+                        source_root,
+                        staging_dir,
+                        destination_fd=staging_fd,
+                    )
+                sync_tree_at(root_fd, staging_name)
+            except BaseException:
+                remove_entry_at(root_fd, staging_name, ignore_errors=True)
+                raise
 
-    try:
-        copy_shippable_skill_tree(source_root, staging_dir)
-    except Exception:
-        remove_tree(staging_dir, ignore_errors=True)
-        raise
-
-    backup_dir: Path | None = None
-    try:
-        if destination.exists():
-            backup_dir = target_root / f".{SKILL_NAME}-backup-{uuid4().hex}"
-            rename_path(destination, backup_dir)
-        rename_path(staging_dir, destination)
-    except Exception as exc:
-        cleanup_exc: Exception | None = None
-        restore_exc: Exception | None = None
-        if backup_dir and backup_dir.exists():
-            if destination.exists():
-                try:
-                    if destination.is_dir():
-                        remove_tree(destination)
-                    else:
-                        destination.unlink()
-                except Exception as err:
-                    cleanup_exc = err
+            commit_published = False
             try:
-                backup_dir.rename(destination)
-            except Exception as err:
-                restore_exc = err
-        extraneous_exc = restore_exc or cleanup_exc
-        if extraneous_exc:
-            raise exc from extraneous_exc
-        raise
-    else:
-        if backup_dir and backup_dir.exists():
-            try:
-                remove_tree(backup_dir)
-            except Exception:
-                pass
-    finally:
-        if staging_dir.exists():
-            try:
-                remove_tree(staging_dir)
-            except Exception:
-                pass
+                write_export_state(
+                    root_fd,
+                    target_root,
+                    staging_name=staging_name,
+                    backup_name=backup_name,
+                )
+                if backup_name is not None:
+                    rename_entry(root_fd, SKILL_NAME, backup_name)
+                    os.fsync(root_fd)
+                rename_entry(root_fd, staging_name, SKILL_NAME)
+                os.fsync(root_fd)
+                commit_published = True
+            except BaseException as exc:
+                cleanup_exc: BaseException | None = None
+                restore_exc: BaseException | None = None
+                if backup_name and entry_exists(root_fd, backup_name):
+                    if entry_exists(root_fd, SKILL_NAME):
+                        try:
+                            remove_entry_at(root_fd, SKILL_NAME)
+                        except Exception as err:
+                            cleanup_exc = err
+                    try:
+                        rename_entry(root_fd, backup_name, SKILL_NAME)
+                    except Exception as err:
+                        restore_exc = err
+                extraneous_exc = restore_exc or cleanup_exc
+                if extraneous_exc:
+                    raise exc from extraneous_exc
+                raise
+            else:
+                if backup_name and entry_exists(root_fd, backup_name):
+                    try:
+                        remove_entry_at(root_fd, backup_name)
+                    except Exception:
+                        pass
+            finally:
+                if entry_exists(root_fd, staging_name):
+                    try:
+                        remove_entry_at(root_fd, staging_name)
+                    except Exception:
+                        pass
+                if not (entry_exists(root_fd, staging_name) or (backup_name and entry_exists(root_fd, backup_name))):
+                    clear_export_state(root_fd)
+                    if commit_published:
+                        os.fsync(root_fd)
 
     return destination
 
 
 def build_release_zip(output_dir: Path, version: str | None = None, release_tag: str | None = None) -> Path:
-    normalized_version = validate_semver(version or __version__)
-    if release_tag:
-        ensure_tag_matches_version(release_tag, normalized_version)
+    ensure_supported_platform()
+    normalized_version = normalize_build_version(version)
+    if release_tag is not None:
+        normalized_tag = release_tag.strip()
+        if not normalized_tag:
+            raise ValueError("Release tag cannot be blank.")
+        ensure_tag_matches_version(normalized_tag, normalized_version)
 
-    source_root = skill_source_dir()
-    if not source_root.exists():
-        raise FileNotFoundError(f"Skill source directory not found: {source_root}")
+    source_root = validate_skill_source(skill_source_dir())
+    validate_write_path(output_dir, label="Build output path")
+    validate_not_within_source(output_dir, source_root, label="Build output path")
 
     if output_dir.exists() and not output_dir.is_dir():
         raise ValueError(f"Output path exists and is not a directory: {output_dir}")
 
-    output_dir.mkdir(parents=True, exist_ok=True)
     artifact = output_dir / f"{SKILL_NAME}-{normalized_version}.zip"
+    temp_artifact_name = f".{SKILL_NAME}-{normalized_version}-{uuid4().hex}.zip.tmp"
 
-    with ZipFile(artifact, "w", compression=ZIP_DEFLATED) as archive:
-        for path, relative in iter_shippable_skill_files(source_root):
-            archive.write(path, arcname=f"{SKILL_NAME}/{relative}")
+    with ensured_directory(output_dir, label="Build output path") as output_fd:
+        temp_artifact_fd = os.open(
+            temp_artifact_name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | NOFOLLOW_FLAG,
+            0o600,
+            dir_fd=output_fd,
+        )
+        try:
+            with os.fdopen(temp_artifact_fd, "wb") as temp_artifact:
+                with ZipFile(temp_artifact, "w", compression=ZIP_DEFLATED) as archive:
+                    for snapshot in snapshot_shippable_skill_files(source_root):
+                        with opened_snapshotted_file(snapshot) as source_fd:
+                            with archive.open(f"{SKILL_NAME}/{snapshot.relative}", "w") as entry:
+                                stream_fd_to_writer(source_fd, entry, label=snapshot.relative)
+                temp_artifact.flush()
+                os.fsync(temp_artifact.fileno())
+            replace_entry(output_fd, temp_artifact_name, artifact.name)
+            os.fsync(output_fd)
+        except BaseException:
+            remove_entry_at(output_fd, temp_artifact_name, ignore_errors=True)
+            raise
 
     return artifact
