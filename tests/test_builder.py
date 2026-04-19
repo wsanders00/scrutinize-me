@@ -5,6 +5,7 @@ import tempfile
 import threading
 import unittest
 import uuid
+import types
 from pathlib import Path
 from unittest import mock
 import zipfile
@@ -19,6 +20,7 @@ from scrutinize_me_skill.manifest import REQUIRED_SKILL_FILES, SKILL_NAME
 from scrutinize_me_skill.builder import (
     build_release_zip,
     ensure_tag_matches_version,
+    ensure_supported_platform,
     iter_shippable_skill_files,
     materialize_skill,
     release_version_from_tag,
@@ -1040,6 +1042,48 @@ class ReleaseBundleTests(unittest.TestCase):
 
             self.assertIn("POSIX", str(context.exception))
             self.assertFalse(export_root.exists())
+
+    def test_ensure_supported_platform_rejects_missing_fcntl(self) -> None:
+        from scrutinize_me_skill import builder as builder_module
+
+        with mock.patch.object(builder_module, "fcntl", None):
+            with mock.patch.object(builder_module.os, "name", "posix"):
+                with self.assertRaises(RuntimeError) as context:
+                    ensure_supported_platform()
+
+        self.assertIn("fcntl.flock", str(context.exception))
+
+    def test_ensure_supported_platform_rejects_missing_fwalk(self) -> None:
+        from scrutinize_me_skill import builder as builder_module
+
+        fake_os = types.SimpleNamespace(name="posix")
+        with mock.patch.object(builder_module, "os", fake_os):
+            with self.assertRaises(RuntimeError) as context:
+                ensure_supported_platform()
+
+        self.assertIn("os.fwalk", str(context.exception))
+
+    def test_ensure_supported_platform_rejects_missing_directory_flag(self) -> None:
+        from scrutinize_me_skill import builder as builder_module
+
+        with mock.patch.object(builder_module, "DIRECTORY_FLAG", 0):
+            with mock.patch.object(builder_module.os, "name", "posix"):
+                with mock.patch.object(builder_module.os, "fwalk", lambda *args, **kwargs: None):
+                    with self.assertRaises(RuntimeError) as context:
+                        ensure_supported_platform()
+
+        self.assertIn("os.O_DIRECTORY", str(context.exception))
+
+    def test_ensure_supported_platform_rejects_missing_nofollow_flag(self) -> None:
+        from scrutinize_me_skill import builder as builder_module
+
+        with mock.patch.object(builder_module, "NOFOLLOW_FLAG", 0):
+            with mock.patch.object(builder_module.os, "name", "posix"):
+                with mock.patch.object(builder_module.os, "fwalk", lambda *args, **kwargs: None):
+                    with self.assertRaises(RuntimeError) as context:
+                        ensure_supported_platform()
+
+        self.assertIn("os.O_NOFOLLOW", str(context.exception))
 
     def test_build_release_zip_accepts_tmp_alias_output_dir(self) -> None:
         if not Path("/tmp").exists():
