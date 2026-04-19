@@ -806,8 +806,70 @@ class ReleaseBundleTests(unittest.TestCase):
             self.assertGreater(reads, 1)
             self.assertGreater(len(writes), 1)
             with zipfile.ZipFile(artifact) as archive:
-                archive_names = set(archive.namelist())
-            self.assertIn("scrutinize-me/references/large.txt", archive_names)
+                self.assertEqual(
+                    archive.read("scrutinize-me/references/large.txt"),
+                    payload,
+                )
+
+    def test_build_release_zip_rejects_writer_returning_none(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            skill_root = self._make_skill_root(root / "source")
+            output_dir = root / "dist"
+            payload = b"payload"
+            large_path = skill_root / "references" / "large.txt"
+            large_path.write_bytes(payload)
+            info = large_path.stat()
+
+            from scrutinize_me_skill import builder as builder_module
+
+            snapshot = builder_module.ShippableFileSnapshot(
+                path=large_path,
+                relative="references/large.txt",
+                device=info.st_dev,
+                inode=info.st_ino,
+                size=info.st_size,
+                mtime_ns=info.st_mtime_ns,
+            )
+            chunks = [payload, b""]
+            real_open = builder_module.ZipFile.open
+
+            def chunked_read(_: int, __: int) -> bytes:
+                if chunks:
+                    return chunks.pop(0)
+                return b""
+
+            class NoneWriter:
+                def __init__(self, inner) -> None:
+                    self._inner = inner
+
+                def __enter__(self):
+                    self._inner.__enter__()
+                    return self
+
+                def __exit__(self, exc_type, exc, tb):
+                    return self._inner.__exit__(exc_type, exc, tb)
+
+                def write(self, data: bytes):
+                    return None
+
+            def none_open(self, name, mode="r", *args, **kwargs):
+                return NoneWriter(real_open(self, name, mode, *args, **kwargs))
+
+            with mock.patch("scrutinize_me_skill.builder.skill_source_dir", return_value=skill_root):
+                with mock.patch(
+                    "scrutinize_me_skill.builder.snapshot_shippable_skill_files",
+                    return_value=[snapshot],
+                ):
+                    with mock.patch("scrutinize_me_skill.builder.os.read", side_effect=chunked_read):
+                        with mock.patch("scrutinize_me_skill.builder.ZipFile.open", new=none_open):
+                            with self.assertRaises(OSError):
+                                build_release_zip(
+                                    output_dir=output_dir,
+                                    version=__version__,
+                                )
+
+            self.assertFalse((output_dir / f"{SKILL_NAME}-{__version__}.zip").exists())
 
     def test_materialize_skill_restores_after_keyboard_interrupt_during_staging_rename(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

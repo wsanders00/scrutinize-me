@@ -491,7 +491,7 @@ def stream_fd_to_writer(source_fd: int, writer, *, label: str) -> None:
         while remaining:
             written = writer.write(remaining)
             if written is None:
-                return
+                raise OSError(f"Writer returned None while writing {label}")
             if written <= 0:
                 raise OSError(f"Short write while writing {label}")
             remaining = remaining[written:]
