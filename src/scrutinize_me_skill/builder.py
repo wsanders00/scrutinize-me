@@ -428,24 +428,13 @@ def opened_parent_directory(root_fd: int, relative: str):
         os.close(current_fd)
 
 
-def write_bytes_at(root_fd: int, relative: str, data: bytes) -> None:
-    relative_path = PurePosixPath(relative)
-    with opened_parent_directory(root_fd, relative_path.as_posix()) as parent_fd:
-        file_fd = os.open(
-            relative_path.name,
-            os.O_WRONLY | os.O_CREAT | os.O_TRUNC | NOFOLLOW_FLAG,
-            0o600,
-            dir_fd=parent_fd,
-        )
-        try:
-            remaining = memoryview(data)
-            while remaining:
-                written = os.write(file_fd, remaining)
-                if written <= 0:
-                    raise OSError(f"Short write while writing {relative}")
-                remaining = remaining[written:]
-        finally:
-            os.close(file_fd)
+def write_all(fd: int, data: bytes, *, label: str) -> None:
+    remaining = memoryview(data)
+    while remaining:
+        written = os.write(fd, remaining)
+        if written <= 0:
+            raise OSError(f"Short write while writing {label}")
+        remaining = remaining[written:]
 
 
 def snapshot_shippable_skill_files(source_root: Path | None = None) -> list[ShippableFileSnapshot]:
@@ -467,7 +456,8 @@ def snapshot_shippable_skill_files(source_root: Path | None = None) -> list[Ship
     return snapshots
 
 
-def read_snapshotted_file(snapshot: ShippableFileSnapshot) -> bytes:
+@contextmanager
+def opened_snapshotted_file(snapshot: ShippableFileSnapshot):
     fd = os.open(snapshot.path, os.O_RDONLY | NOFOLLOW_FLAG)
     try:
         info = os.fstat(fd)
@@ -479,16 +469,32 @@ def read_snapshotted_file(snapshot: ShippableFileSnapshot) -> bytes:
             or info.st_mtime_ns != snapshot.mtime_ns
         ):
             raise ValueError(f"Shipped file changed during export/build: {snapshot.path}")
-
-        chunks: list[bytes] = []
-        while True:
-            chunk = os.read(fd, 65536)
-            if not chunk:
-                break
-            chunks.append(chunk)
-        return b"".join(chunks)
+        yield fd
     finally:
         os.close(fd)
+
+
+def stream_fd_to_fd(source_fd: int, destination_fd: int, *, label: str) -> None:
+    while True:
+        chunk = os.read(source_fd, 65536)
+        if not chunk:
+            break
+        write_all(destination_fd, chunk, label=label)
+
+
+def stream_fd_to_writer(source_fd: int, writer, *, label: str) -> None:
+    while True:
+        chunk = os.read(source_fd, 65536)
+        if not chunk:
+            break
+        remaining = memoryview(chunk)
+        while remaining:
+            written = writer.write(remaining)
+            if written is None:
+                return
+            if written <= 0:
+                raise OSError(f"Short write while writing {label}")
+            remaining = remaining[written:]
 
 
 def copy_shippable_skill_tree(
@@ -507,8 +513,19 @@ def copy_shippable_skill_tree(
         return
 
     for snapshot in snapshot_shippable_skill_files(source_root):
-        data = read_snapshotted_file(snapshot)
-        write_bytes_at(destination_fd, snapshot.relative, data)
+        with opened_snapshotted_file(snapshot) as source_fd:
+            relative_path = PurePosixPath(snapshot.relative)
+            with opened_parent_directory(destination_fd, relative_path.as_posix()) as parent_fd:
+                file_fd = os.open(
+                    relative_path.name,
+                    os.O_WRONLY | os.O_CREAT | os.O_TRUNC | NOFOLLOW_FLAG,
+                    0o600,
+                    dir_fd=parent_fd,
+                )
+                try:
+                    stream_fd_to_fd(source_fd, file_fd, label=snapshot.relative)
+                finally:
+                    os.close(file_fd)
 
 
 def write_export_state(root_fd: int, target_root: Path, *, staging_name: str, backup_name: str | None) -> None:
@@ -791,10 +808,9 @@ def build_release_zip(output_dir: Path, version: str | None = None, release_tag:
             with os.fdopen(temp_artifact_fd, "wb") as temp_artifact:
                 with ZipFile(temp_artifact, "w", compression=ZIP_DEFLATED) as archive:
                     for snapshot in snapshot_shippable_skill_files(source_root):
-                        archive.writestr(
-                            f"{SKILL_NAME}/{snapshot.relative}",
-                            read_snapshotted_file(snapshot),
-                        )
+                        with opened_snapshotted_file(snapshot) as source_fd:
+                            with archive.open(f"{SKILL_NAME}/{snapshot.relative}", "w") as entry:
+                                stream_fd_to_writer(source_fd, entry, label=snapshot.relative)
             replace_entry(output_fd, temp_artifact_name, artifact.name)
         except BaseException:
             remove_entry_at(output_fd, temp_artifact_name, ignore_errors=True)

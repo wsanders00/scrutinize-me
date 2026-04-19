@@ -683,6 +683,132 @@ class ReleaseBundleTests(unittest.TestCase):
 
         self.assertIn("not a directory", str(context.exception))
 
+    def test_materialize_skill_streams_payload_without_buffering(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            skill_root = self._make_skill_root(root / "source")
+            export_root = root / "exports"
+            payload = b"A" * 8 + b"B" * 8 + b"C" * 8
+            large_path = skill_root / "references" / "large.txt"
+            large_path.write_bytes(payload)
+            info = large_path.stat()
+
+            from scrutinize_me_skill import builder as builder_module
+
+            snapshot = builder_module.ShippableFileSnapshot(
+                path=large_path,
+                relative="references/large.txt",
+                device=info.st_dev,
+                inode=info.st_ino,
+                size=info.st_size,
+                mtime_ns=info.st_mtime_ns,
+            )
+            chunk_size = 8
+            chunks = [payload[:8], payload[8:16], payload[16:], b""]
+            reads = 0
+            writes: list[int] = []
+            real_write = builder_module.os.write
+
+            def chunked_read(_: int, __: int) -> bytes:
+                nonlocal reads
+                reads += 1
+                if chunks:
+                    return chunks.pop(0)
+                return b""
+
+            def guarded_write(fd: int, data: bytes) -> int:
+                self.assertLessEqual(len(data), chunk_size)
+                writes.append(len(data))
+                return real_write(fd, data)
+
+            with mock.patch("scrutinize_me_skill.builder.skill_source_dir", return_value=skill_root):
+                with mock.patch(
+                    "scrutinize_me_skill.builder.snapshot_shippable_skill_files",
+                    return_value=[snapshot],
+                ):
+                    with mock.patch("scrutinize_me_skill.builder.os.read", side_effect=chunked_read):
+                        with mock.patch("scrutinize_me_skill.builder.os.write", side_effect=guarded_write):
+                            skill_dir = materialize_skill(export_root)
+
+            self.assertGreater(reads, 1)
+            self.assertGreater(len(writes), 1)
+            self.assertEqual(
+                (skill_dir / "references" / "large.txt").read_bytes(),
+                payload,
+            )
+
+    def test_build_release_zip_streams_payload_without_buffering(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            skill_root = self._make_skill_root(root / "source")
+            output_dir = root / "dist"
+            payload = b"A" * 8 + b"B" * 8 + b"C" * 8
+            large_path = skill_root / "references" / "large.txt"
+            large_path.write_bytes(payload)
+            info = large_path.stat()
+
+            from scrutinize_me_skill import builder as builder_module
+
+            snapshot = builder_module.ShippableFileSnapshot(
+                path=large_path,
+                relative="references/large.txt",
+                device=info.st_dev,
+                inode=info.st_ino,
+                size=info.st_size,
+                mtime_ns=info.st_mtime_ns,
+            )
+            chunk_size = 8
+            chunks = [payload[:8], payload[8:16], payload[16:], b""]
+            reads = 0
+            writes: list[int] = []
+            real_open = builder_module.ZipFile.open
+
+            def chunked_read(_: int, __: int) -> bytes:
+                nonlocal reads
+                reads += 1
+                if chunks:
+                    return chunks.pop(0)
+                return b""
+
+            test_case = self
+
+            class StreamingWriter:
+                def __init__(self, inner) -> None:
+                    self._inner = inner
+
+                def __enter__(self):
+                    self._inner.__enter__()
+                    return self
+
+                def __exit__(self, exc_type, exc, tb):
+                    return self._inner.__exit__(exc_type, exc, tb)
+
+                def write(self, data: bytes) -> int:
+                    test_case.assertLessEqual(len(data), chunk_size)
+                    writes.append(len(data))
+                    return self._inner.write(data)
+
+            def streaming_open(self, name, mode="r", *args, **kwargs):
+                return StreamingWriter(real_open(self, name, mode, *args, **kwargs))
+
+            with mock.patch("scrutinize_me_skill.builder.skill_source_dir", return_value=skill_root):
+                with mock.patch(
+                    "scrutinize_me_skill.builder.snapshot_shippable_skill_files",
+                    return_value=[snapshot],
+                ):
+                    with mock.patch("scrutinize_me_skill.builder.os.read", side_effect=chunked_read):
+                        with mock.patch("scrutinize_me_skill.builder.ZipFile.open", new=streaming_open):
+                            artifact = build_release_zip(
+                                output_dir=output_dir,
+                                version=__version__,
+                            )
+
+            self.assertGreater(reads, 1)
+            self.assertGreater(len(writes), 1)
+            with zipfile.ZipFile(artifact) as archive:
+                archive_names = set(archive.namelist())
+            self.assertIn("scrutinize-me/references/large.txt", archive_names)
+
     def test_materialize_skill_restores_after_keyboard_interrupt_during_staging_rename(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
