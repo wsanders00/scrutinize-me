@@ -128,13 +128,15 @@ class ReleaseBundleTests(unittest.TestCase):
             export_root = Path(tmp_dir) / "outer" / "inner" / "exports"
             original_umask = os.umask(0)
             try:
-                materialize_skill(export_root)
+                skill_dir = materialize_skill(export_root)
             finally:
                 os.umask(original_umask)
 
             self._assert_owner_only_dir(export_root)
             self._assert_owner_only_dir(export_root.parent)
             self._assert_owner_only_dir(export_root.parent.parent)
+            self._assert_owner_only_dir(skill_dir / "agents")
+            self._assert_owner_only_dir(skill_dir / "references")
 
     def test_materialize_skill_creates_owner_only_staging_directory_under_permissive_umask(
         self,
