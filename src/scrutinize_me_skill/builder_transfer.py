@@ -26,6 +26,16 @@ class ShippableFileSnapshot:
     mtime_ns: int
 
 
+def _matches_snapshot(snapshot: ShippableFileSnapshot, info: os.stat_result) -> bool:
+    return (
+        stat.S_ISREG(info.st_mode)
+        and info.st_dev == snapshot.device
+        and info.st_ino == snapshot.inode
+        and info.st_size == snapshot.size
+        and info.st_mtime_ns == snapshot.mtime_ns
+    )
+
+
 def skill_source_dir() -> Path:
     return Path(__file__).resolve().parent / "skill" / SKILL_NAME
 
@@ -74,6 +84,8 @@ def snapshot_shippable_skill_files(
         info = os.lstat(path)
         if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
             raise ValueError(f"Symlinks are not allowed in the shipped skill payload: {path}")
+        if info.st_nlink > 1:
+            raise ValueError(f"Hard links are not allowed in the shipped skill payload: {path}")
         snapshots.append(
             ShippableFileSnapshot(
                 path=path,
@@ -96,15 +108,12 @@ def opened_snapshotted_file(
     fd = os.open(snapshot.path, os.O_RDONLY | nofollow_flag)
     try:
         info = os.fstat(fd)
-        if (
-            not stat.S_ISREG(info.st_mode)
-            or info.st_dev != snapshot.device
-            or info.st_ino != snapshot.inode
-            or info.st_size != snapshot.size
-            or info.st_mtime_ns != snapshot.mtime_ns
-        ):
+        if not _matches_snapshot(snapshot, info):
             raise ValueError(f"Shipped file changed during export/build: {snapshot.path}")
         yield fd
+        info = os.fstat(fd)
+        if not _matches_snapshot(snapshot, info):
+            raise ValueError(f"Shipped file changed during export/build: {snapshot.path}")
     finally:
         os.close(fd)
 
@@ -143,7 +152,11 @@ def copy_shippable_skill_tree(
     ensure_directory=ensured_directory,
     stream_to_fd=stream_fd_to_fd,
     nofollow_flag: int = NOFOLLOW_FLAG,
+    sync_fd=None,
 ) -> None:
+    if sync_fd is None:
+        sync_fd = os.fsync
+
     if destination_fd is None:
         with ensure_directory(destination, label="Copy destination") as destination_root_fd:
             copy_shippable_skill_tree(
@@ -156,6 +169,7 @@ def copy_shippable_skill_tree(
                 ensure_directory=ensure_directory,
                 stream_to_fd=stream_to_fd,
                 nofollow_flag=nofollow_flag,
+                sync_fd=sync_fd,
             )
         return
 
@@ -171,5 +185,6 @@ def copy_shippable_skill_tree(
                 )
                 try:
                     stream_to_fd(source_fd, file_fd, label=snapshot.relative)
+                    sync_fd(file_fd)
                 finally:
                     os.close(file_fd)

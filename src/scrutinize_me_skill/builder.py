@@ -21,6 +21,7 @@ from scrutinize_me_skill.builder_fs import (
     remove_entry_at,
     rename_entry,
     replace_entry,
+    sync_tree_at,
     write_all,
 )
 from scrutinize_me_skill.builder_platform import (
@@ -210,10 +211,12 @@ def materialize_skill(target_root: Path, *, force: bool = False) -> Path:
                         staging_dir,
                         destination_fd=staging_fd,
                     )
+                sync_tree_at(root_fd, staging_name)
             except BaseException:
                 remove_entry_at(root_fd, staging_name, ignore_errors=True)
                 raise
 
+            commit_published = False
             try:
                 write_export_state(
                     root_fd,
@@ -223,7 +226,10 @@ def materialize_skill(target_root: Path, *, force: bool = False) -> Path:
                 )
                 if backup_name is not None:
                     rename_entry(root_fd, SKILL_NAME, backup_name)
+                    os.fsync(root_fd)
                 rename_entry(root_fd, staging_name, SKILL_NAME)
+                os.fsync(root_fd)
+                commit_published = True
             except BaseException as exc:
                 cleanup_exc: BaseException | None = None
                 restore_exc: BaseException | None = None
@@ -255,6 +261,8 @@ def materialize_skill(target_root: Path, *, force: bool = False) -> Path:
                         pass
                 if not (entry_exists(root_fd, staging_name) or (backup_name and entry_exists(root_fd, backup_name))):
                     clear_export_state(root_fd)
+                    if commit_published:
+                        os.fsync(root_fd)
 
     return destination
 
@@ -292,7 +300,10 @@ def build_release_zip(output_dir: Path, version: str | None = None, release_tag:
                         with opened_snapshotted_file(snapshot) as source_fd:
                             with archive.open(f"{SKILL_NAME}/{snapshot.relative}", "w") as entry:
                                 stream_fd_to_writer(source_fd, entry, label=snapshot.relative)
+                temp_artifact.flush()
+                os.fsync(temp_artifact.fileno())
             replace_entry(output_fd, temp_artifact_name, artifact.name)
+            os.fsync(output_fd)
         except BaseException:
             remove_entry_at(output_fd, temp_artifact_name, ignore_errors=True)
             raise

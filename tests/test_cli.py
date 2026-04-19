@@ -38,6 +38,63 @@ class CliTest(TestCase):
         self.assertEqual(buffer.getvalue().strip(), str(destination))
         mock_materialize.assert_called_once_with(Path(".agents/skills"), force=False)
 
+    @patch("scrutinize_me_skill.cli.materialize_skill")
+    def test_export_command_respects_flags(self, mock_materialize):
+        destination = Path("/tmp/custom-export")
+        mock_materialize.return_value = destination
+
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            result = cli.main(["export", "--force", "--target-root", "/tmp/skills"])
+
+        self.assertEqual(result, 0)
+        self.assertEqual(buffer.getvalue().strip(), str(destination))
+        mock_materialize.assert_called_once_with(Path("/tmp/skills"), force=True)
+
+    @patch("scrutinize_me_skill.cli.build_release_zip")
+    def test_build_command_logs_artifact_and_returns_zero(self, mock_build_release_zip):
+        artifact = Path("/tmp/scrutinize-me-0.1.0.zip")
+        mock_build_release_zip.return_value = artifact
+
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            result = cli.main(["build"])
+
+        self.assertEqual(result, 0)
+        self.assertEqual(buffer.getvalue().strip(), str(artifact))
+        mock_build_release_zip.assert_called_once_with(
+            output_dir=Path("dist"),
+            version=__version__,
+            release_tag=None,
+        )
+
+    @patch("scrutinize_me_skill.cli.build_release_zip")
+    def test_build_command_respects_explicit_flags(self, mock_build_release_zip):
+        artifact = Path("/tmp/custom.zip")
+        mock_build_release_zip.return_value = artifact
+
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            result = cli.main(
+                [
+                    "build",
+                    "--output-dir",
+                    "/tmp/dist",
+                    "--version",
+                    __version__,
+                    "--release-tag",
+                    f"v{__version__}",
+                ]
+            )
+
+        self.assertEqual(result, 0)
+        self.assertEqual(buffer.getvalue().strip(), str(artifact))
+        mock_build_release_zip.assert_called_once_with(
+            output_dir=Path("/tmp/dist"),
+            version=__version__,
+            release_tag=f"v{__version__}",
+        )
+
     def test_invalid_invocation_raises_system_exit(self):
         stderr = io.StringIO()
 

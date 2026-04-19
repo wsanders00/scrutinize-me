@@ -43,5 +43,14 @@
       "Residual risk or testing gaps are still mentioned",
       "The output does not invent issues to fill space"
     ]
+  },
+  {
+    "name": "shared-schema-covers-persona-fields",
+    "prompt": "Use $scrutinize-me to review a change where the security, performance, architecture, and contracts reviewers each need persona-specific JSON fields in addition to the shared issue shape. You are the orchestrator and must keep all reviewer output compatible with one shared schema.",
+    "checks": [
+      "The reviewer schema supports persona-specific issue fields such as attack_scenario, trigger_condition, and affected_contract",
+      "The reviewer schema documents persona-specific top-level arrays such as residual_risks, production_readiness_notes, suggested_refactor_follow_ups, and rollout_cautions",
+      "Reviewer prompts point back to the shared schema instead of inventing incompatible ad hoc keys"
+    ]
   }
 ]

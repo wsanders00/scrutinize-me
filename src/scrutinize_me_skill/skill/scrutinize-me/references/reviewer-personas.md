@@ -24,11 +24,14 @@ Rules:
 - Do not comment on style, architecture, or performance unless it directly causes a correctness bug.
 - Prefer confirmed issues over speculative ones.
 - For each issue, include:
-  1. severity: critical / high / medium / low
-  2. exact file and function
-  3. why it is a problem
-  4. the smallest reasonable fix
-  5. whether a test should be added
+  1. severity
+  2. title
+  3. file
+  4. function
+  5. confidence
+  6. why_it_matters
+  7. smallest_fix
+  8. test_needed
 
 Output:
 - Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
@@ -64,18 +67,22 @@ Rules:
 
 For each issue, include:
 1. severity
-2. attack scenario
-3. exact file and function
-4. why the code is vulnerable
-5. smallest fix
-6. whether mitigation belongs in code, config, or infra
+2. title
+3. file
+4. function
+5. confidence
+6. why_it_matters
+7. smallest_fix
+8. test_needed
+9. attack_scenario
+10. mitigation_scope (`code`, `config`, or `infra`)
 
 Output:
 - Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
 - Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
 - Summary
 - Top issues: up to 5
-- Residual risks
+- Residual risks: use `residual_risks`
 ```
 
 ### Performance and reliability
@@ -105,18 +112,22 @@ Rules:
 
 For each issue, include:
 1. severity
-2. trigger condition
-3. exact file and function
-4. likely impact
-5. smallest fix
-6. whether benchmarking/load test/chaos test is needed
+2. title
+3. file
+4. function
+5. confidence
+6. why_it_matters
+7. smallest_fix
+8. test_needed
+9. trigger_condition
+10. likely_impact
 
 Output:
 - Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
 - Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
 - Summary
 - Top issues: up to 5
-- Production-readiness notes
+- Production-readiness notes: use `production_readiness_notes`
 ```
 
 ### Architecture and maintainability
@@ -144,18 +155,21 @@ Rules:
 
 For each issue, include:
 1. severity
-2. exact file and function/module
-3. design smell or maintainability risk
-4. why it matters long term
-5. smallest fix
-6. whether this should block merge or be follow-up work
+2. title
+3. file
+4. function
+5. confidence
+6. why_it_matters
+7. smallest_fix
+8. test_needed
+9. merge_blocking
 
 Output:
 - Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
 - Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
 - Summary
 - Top issues: up to 5
-- Suggested refactor follow-ups
+- Suggested refactor follow-ups: use `suggested_refactor_follow_ups`
 ```
 
 ### Contracts, data, and migrations
@@ -184,18 +198,23 @@ Rules:
 
 For each issue, include:
 1. severity
-2. affected contract or data boundary
-3. exact file/function/migration
-4. breakage scenario
-5. smallest fix
-6. rollout or migration precaution needed
+2. title
+3. file
+4. function
+5. confidence
+6. why_it_matters
+7. smallest_fix
+8. test_needed
+9. affected_contract
+10. breakage_scenario
+11. rollout_caution
 
 Output:
 - Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
 - Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
 - Summary
 - Top issues: up to 5
-- Rollout cautions
+- Rollout cautions: use `rollout_cautions`
 ```
 
 ## Optional specialist reviewers
@@ -216,7 +235,7 @@ Look for:
 
 Output:
 - Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
-- Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object, describe only the 3 highest-risk break paths and include concrete reproduction ideas.
+- Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object, use the shared issue keys from `references/output-schema.md`, describe only the 3 highest-risk break paths, and include concrete reproduction ideas.
 ```
 
 ### Regression reviewer
@@ -235,6 +254,7 @@ Focus on:
 Output:
 - Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
 - Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
+- Use the shared issue keys from `references/output-schema.md`.
 - Intended behavior changes
 - Suspected unintended regressions
 - Tests needed to lock behavior
@@ -257,6 +277,7 @@ Focus on:
 Output:
 - Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
 - Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
+- Use the shared issue keys from `references/output-schema.md`.
 - Coverage gaps
 - Fragile tests
 - Highest-value tests to add first

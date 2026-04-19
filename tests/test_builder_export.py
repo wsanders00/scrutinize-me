@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import stat
 import sys
 import tempfile
 import unittest
@@ -128,6 +129,85 @@ class MaterializeSkillTests(unittest.TestCase):
 
             self.assertIn("rerun with --force", str(context.exception))
 
+    def test_materialize_skill_fsyncs_staging_and_root_before_reporting_success(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            skill_root = self._make_skill_root(root / "source")
+            export_root = root / "exports"
+            stage_uuid = uuid.UUID("00000000000000000000000000000001")
+            state_uuid = uuid.UUID("00000000000000000000000000000002")
+            uuid_sequence = [stage_uuid, state_uuid]
+            staging_name = f".{SKILL_NAME}-staging-{stage_uuid.hex}"
+            events: list[str] = []
+            real_rename = builder_module.rename_entry
+            real_clear = builder_module.clear_export_state
+            real_fsync = builder_module.os.fsync
+
+            def fake_uuid4() -> uuid.UUID:
+                return uuid_sequence.pop(0)
+
+            def label_fd(fd: int) -> str:
+                fd_stat = os.fstat(fd)
+                candidates = [export_root]
+                if export_root.exists():
+                    candidates.extend(sorted(export_root.rglob("*")))
+                for candidate in candidates:
+                    try:
+                        candidate_stat = candidate.stat()
+                    except FileNotFoundError:
+                        continue
+                    if (
+                        candidate_stat.st_dev == fd_stat.st_dev
+                        and candidate_stat.st_ino == fd_stat.st_ino
+                        and stat.S_IFMT(candidate_stat.st_mode) == stat.S_IFMT(fd_stat.st_mode)
+                    ):
+                        return candidate.relative_to(root).as_posix()
+                return f"fd:{fd}"
+
+            def record_fsync(fd: int) -> None:
+                events.append(f"fsync:{label_fd(fd)}")
+                real_fsync(fd)
+
+            def record_rename(root_fd: int, source_name: str, target_name: str) -> None:
+                events.append(f"rename:{source_name}->{target_name}")
+                real_rename(root_fd, source_name, target_name)
+
+            def record_clear(root_fd: int) -> None:
+                events.append("clear-export-state")
+                real_clear(root_fd)
+
+            with mock.patch(
+                "scrutinize_me_skill.builder.skill_source_dir",
+                return_value=skill_root,
+            ):
+                with mock.patch.object(builder_module, "uuid4", side_effect=fake_uuid4):
+                    with mock.patch.object(builder_module.os, "fsync", side_effect=record_fsync):
+                        with mock.patch.object(builder_module, "rename_entry", side_effect=record_rename):
+                            with mock.patch.object(
+                                builder_module,
+                                "clear_export_state",
+                                side_effect=record_clear,
+                            ):
+                                skill_dir = materialize_skill(export_root)
+
+            self.assertEqual(skill_dir, export_root / SKILL_NAME)
+            staging_file_event = f"fsync:exports/{staging_name}/SKILL.md"
+            staging_dir_event = f"fsync:exports/{staging_name}"
+            publish_event = f"rename:{staging_name}->{SKILL_NAME}"
+            clear_event = "clear-export-state"
+            self.assertIn(staging_file_event, events)
+            self.assertIn(staging_dir_event, events)
+            self.assertIn(publish_event, events)
+            self.assertIn(clear_event, events)
+            self.assertLess(events.index(staging_file_event), events.index(publish_event))
+            self.assertLess(events.index(staging_dir_event), events.index(publish_event))
+            self.assertTrue(
+                any(index > events.index(publish_event) and events[index] == "fsync:exports" for index in range(len(events)))
+            )
+            self.assertTrue(
+                any(index > events.index(clear_event) and events[index] == "fsync:exports" for index in range(len(events)))
+            )
+
     def test_materialize_skill_rejects_missing_source_root(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
@@ -189,6 +269,25 @@ class MaterializeSkillTests(unittest.TestCase):
             self.assertEqual(victim.read_text(encoding="utf-8"), "SECRET")
             self.assertFalse((export_root / SKILL_NAME).exists())
 
+    def test_materialize_skill_rejects_hard_linked_payload_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            skill_root = self._make_skill_root(root / "source")
+            export_root = root / "exports"
+            victim = root / "victim.txt"
+            victim.write_text("SECRET", encoding="utf-8")
+            linked = skill_root / "references" / "leak.md"
+            os.link(victim, linked)
+
+            with mock.patch(
+                "scrutinize_me_skill.builder.skill_source_dir",
+                return_value=skill_root,
+            ):
+                with self.assertRaises(ValueError):
+                    materialize_skill(export_root)
+
+            self.assertFalse((export_root / SKILL_NAME).exists())
+
     def test_materialize_skill_rejects_in_place_source_edit_after_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
@@ -214,6 +313,38 @@ class MaterializeSkillTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         materialize_skill(export_root)
 
+            self.assertFalse((export_root / SKILL_NAME).exists())
+
+    def test_materialize_skill_rejects_in_place_source_edit_during_stream(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            skill_root = self._make_skill_root(root / "source")
+            export_root = root / "exports"
+            target = skill_root / "agents" / "openai.yaml"
+            target_label = "agents/openai.yaml"
+            rewritten = False
+            real_stream = builder_module.stream_fd_to_fd
+
+            def rewrite_during_stream(source_fd: int, destination_fd: int, *, label: str) -> None:
+                nonlocal rewritten
+                if label == target_label and not rewritten:
+                    rewritten = True
+                    target.write_text("changed during stream\n", encoding="utf-8")
+                real_stream(source_fd, destination_fd, label=label)
+
+            with mock.patch(
+                "scrutinize_me_skill.builder.skill_source_dir",
+                return_value=skill_root,
+            ):
+                with mock.patch.object(
+                    builder_module,
+                    "stream_fd_to_fd",
+                    side_effect=rewrite_during_stream,
+                ):
+                    with self.assertRaises(ValueError):
+                        materialize_skill(export_root)
+
+            self.assertTrue(rewritten)
             self.assertFalse((export_root / SKILL_NAME).exists())
 
     def test_materialize_skill_overwrites_existing_destination_with_force(self) -> None:

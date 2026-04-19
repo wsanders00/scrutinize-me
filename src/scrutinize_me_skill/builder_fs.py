@@ -203,6 +203,16 @@ def replace_entry(root_fd: int, source_name: str, target_name: str) -> None:
     os.replace(source_name, target_name, src_dir_fd=root_fd, dst_dir_fd=root_fd)
 
 
+def sync_tree_at(root_fd: int, name: str) -> None:
+    for _, _, _, dir_fd in os.fwalk(
+        name,
+        topdown=False,
+        dir_fd=root_fd,
+        follow_symlinks=False,
+    ):
+        os.fsync(dir_fd)
+
+
 @contextmanager
 def opened_parent_directory(root_fd: int, relative: str):
     current_fd = os.dup(root_fd)

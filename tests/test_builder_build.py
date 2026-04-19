@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import stat
 import sys
 import tempfile
 import unittest
@@ -87,6 +88,58 @@ class BuildReleaseZipTests(unittest.TestCase):
 
             self._assert_owner_only_dir(output_dir)
             self._assert_owner_only_dir(output_dir.parent)
+
+    def test_build_release_zip_fsyncs_artifact_and_output_dir_before_reporting_success(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            output_dir = root / "dist"
+            fixed_uuid = uuid.UUID("00000000000000000000000000000001")
+            temp_artifact_name = f".{SKILL_NAME}-{__version__}-{fixed_uuid.hex}.zip.tmp"
+            final_artifact_name = f"{SKILL_NAME}-{__version__}.zip"
+            events: list[str] = []
+            real_replace = builder_module.replace_entry
+            real_fsync = builder_module.os.fsync
+
+            def label_fd(fd: int) -> str:
+                fd_stat = os.fstat(fd)
+                candidates = [output_dir]
+                if output_dir.exists():
+                    candidates.extend(sorted(output_dir.rglob("*")))
+                for candidate in candidates:
+                    try:
+                        candidate_stat = candidate.stat()
+                    except FileNotFoundError:
+                        continue
+                    if (
+                        candidate_stat.st_dev == fd_stat.st_dev
+                        and candidate_stat.st_ino == fd_stat.st_ino
+                        and stat.S_IFMT(candidate_stat.st_mode) == stat.S_IFMT(fd_stat.st_mode)
+                    ):
+                        return candidate.relative_to(root).as_posix()
+                return f"fd:{fd}"
+
+            def record_fsync(fd: int) -> None:
+                events.append(f"fsync:{label_fd(fd)}")
+                real_fsync(fd)
+
+            def record_replace(root_fd: int, source_name: str, target_name: str) -> None:
+                events.append(f"replace:{source_name}->{target_name}")
+                real_replace(root_fd, source_name, target_name)
+
+            with mock.patch.object(builder_module, "uuid4", return_value=fixed_uuid):
+                with mock.patch.object(builder_module.os, "fsync", side_effect=record_fsync):
+                    with mock.patch.object(builder_module, "replace_entry", side_effect=record_replace):
+                        artifact = build_release_zip(output_dir=output_dir, version=__version__)
+
+            self.assertEqual(artifact, output_dir / final_artifact_name)
+            temp_event = f"fsync:dist/{temp_artifact_name}"
+            replace_event = f"replace:{temp_artifact_name}->{final_artifact_name}"
+            self.assertIn(temp_event, events)
+            self.assertIn(replace_event, events)
+            self.assertLess(events.index(temp_event), events.index(replace_event))
+            self.assertTrue(
+                any(index > events.index(replace_event) and events[index] == "fsync:dist" for index in range(len(events)))
+            )
 
     def test_build_release_zip_rejects_missing_required_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -187,6 +240,25 @@ class BuildReleaseZipTests(unittest.TestCase):
             self.assertEqual(victim.read_text(encoding="utf-8"), "SECRET")
             self.assertFalse((output_dir / f"{SKILL_NAME}-{__version__}.zip").exists())
 
+    def test_build_release_zip_rejects_hard_linked_payload_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            skill_root = self._make_skill_root(root / "source")
+            output_dir = root / "dist"
+            victim = root / "victim.txt"
+            victim.write_text("SECRET", encoding="utf-8")
+            linked = skill_root / "references" / "leak.md"
+            os.link(victim, linked)
+
+            with mock.patch(
+                "scrutinize_me_skill.builder.skill_source_dir",
+                return_value=skill_root,
+            ):
+                with self.assertRaises(ValueError):
+                    build_release_zip(output_dir=output_dir, version=__version__)
+
+            self.assertFalse((output_dir / f"{SKILL_NAME}-{__version__}.zip").exists())
+
     def test_build_release_zip_rejects_in_place_source_edit_after_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
@@ -212,6 +284,38 @@ class BuildReleaseZipTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         build_release_zip(output_dir=output_dir, version=__version__)
 
+            self.assertFalse((output_dir / f"{SKILL_NAME}-{__version__}.zip").exists())
+
+    def test_build_release_zip_rejects_in_place_source_edit_during_stream(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            skill_root = self._make_skill_root(root / "source")
+            output_dir = root / "dist"
+            target = skill_root / "agents" / "openai.yaml"
+            target_label = "agents/openai.yaml"
+            rewritten = False
+            real_stream = builder_module.stream_fd_to_writer
+
+            def rewrite_during_stream(source_fd: int, writer, *, label: str) -> None:
+                nonlocal rewritten
+                if label == target_label and not rewritten:
+                    rewritten = True
+                    target.write_text("changed during stream\n", encoding="utf-8")
+                real_stream(source_fd, writer, label=label)
+
+            with mock.patch(
+                "scrutinize_me_skill.builder.skill_source_dir",
+                return_value=skill_root,
+            ):
+                with mock.patch.object(
+                    builder_module,
+                    "stream_fd_to_writer",
+                    side_effect=rewrite_during_stream,
+                ):
+                    with self.assertRaises(ValueError):
+                        build_release_zip(output_dir=output_dir, version=__version__)
+
+            self.assertTrue(rewritten)
             self.assertFalse((output_dir / f"{SKILL_NAME}-{__version__}.zip").exists())
 
     def test_build_release_zip_cleans_up_failed_artifact_write(self) -> None:
