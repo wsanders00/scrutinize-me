@@ -45,6 +45,33 @@
     ]
   },
   {
+    "name": "clean-lanes-listed-in-reviewed-with-no-major-issues",
+    "prompt": "Use $scrutinize-me to review a small cleanup where correctness, security, and contracts and data all report no major issues. You are the orchestrator and must explicitly preserve which reviewer lanes were clean.",
+    "checks": [
+      "The final response uses reviewed_with_no_major_issues to list the clean reviewer lanes by name",
+      "The orchestrator does not leave reviewed_with_no_major_issues empty when reviewer lanes are explicitly clean",
+      "Clean-lane reporting stays separate from important_follow_ups and top_must_fix_issues"
+    ]
+  },
+  {
+    "name": "follow-up-risks-yield-approve-with-follow-ups",
+    "prompt": "Use $scrutinize-me to review a change where reviewers report only non-blocking risks and test gaps. You are the orchestrator. Keep the review mergeable while preserving follow-up risk visibility.",
+    "checks": [
+      "Non-blocking risks and cautions are captured in important_follow_ups instead of top_must_fix_issues",
+      "The merge recommendation is approve with follow-ups when no merge_blocking findings remain",
+      "The final response still includes reviewed_with_no_major_issues and suggested_tests_before_merge alongside follow-up risks"
+    ]
+  },
+  {
+    "name": "payments-or-public-endpoint-adds-adversarial-review",
+    "prompt": "Use $scrutinize-me to review a change that adds a payment capture flow and makes a deletion endpoint publicly callable. You are the orchestrator. Run the default five reviewers and add adversarial review even though auth or admin files were not modified.",
+    "checks": [
+      "The adversarial reviewer is added when payments, destructive data deletion, or newly public endpoints are in scope",
+      "Adversarial analysis highlights abuse or harm scenarios for exposed money-movement and deletion paths",
+      "The merged output keeps adversarial findings deduplicated with the rest of the review"
+    ]
+  },
+  {
     "name": "shared-schema-covers-persona-fields",
     "prompt": "Use $scrutinize-me to review a change where the security, performance, architecture, and contracts reviewers each need persona-specific JSON fields in addition to the shared issue shape. You are the orchestrator and must keep all reviewer output compatible with one shared schema.",
     "checks": [
@@ -85,7 +112,7 @@
     "prompt": "Use $scrutinize-me to review this change. You are the orchestrator. The reviewer outputs and final merged output must each include all required top-level keys and preserve reviewer provenance explicitly rather than relying on examples.",
     "checks": [
       "The reviewer result contract explicitly requires agent, summary, issues, and open_questions",
-      "The final orchestrated result contract explicitly requires merge_recommendation, top_must_fix_issues, important_follow_ups, reviewed_with_no_major_issues, suggested_tests_before_merge, and executive_summary",
+      "The final orchestrated result contract explicitly requires merge_recommendation, top_must_fix_issues, important_follow_ups, reviewed_with_no_major_issues, suggested_tests_before_merge, open_questions, and executive_summary",
       "Merged blocker findings preserve reviewer provenance through an explicit owners field"
     ]
   },
@@ -105,6 +132,24 @@
       "Reviewer prompts use exact schema keys such as summary, issues, and open_questions instead of human-labeled variants",
       "Persona-specific top-level arrays are referenced by exact key names such as residual_risks, production_readiness_notes, and rollout_cautions",
       "Optional specialist reviewers also point subagents at exact schema keys like intended_behavior_changes, suspected_unintended_regressions, coverage_gaps, and highest_value_tests_to_add_first"
+    ]
+  },
+  {
+    "name": "missing-review-bundle-prompts-for-context-or-flags-limitation",
+    "prompt": "Use $scrutinize-me to review a pull request where the review bundle is incomplete: there is no code diff and no test output, only a short feature summary. You are the orchestrator. Before dispatching, either request the missing critical context or proceed with a clearly structured limitation in the final JSON.",
+    "checks": [
+      "When critical review-bundle artifacts are missing, the orchestrator asks for missing context before dispatch whenever possible",
+      "If synthesis proceeds despite missing critical artifacts, the limitation is captured explicitly in open_questions and executive_summary",
+      "The final output does not present high-confidence conclusions as if the missing diff and test context were available"
+    ]
+  },
+  {
+    "name": "deduplicated-finding-preserves-multi-lane-owners",
+    "prompt": "Use $scrutinize-me to review a change where correctness and contracts-and-data reviewers both report the same merge-blocking schema break. You are the orchestrator. Deduplicate the blocker into one final issue while preserving reviewer provenance.",
+    "checks": [
+      "Semantically duplicate blocker findings are merged into one top_must_fix_issues entry",
+      "The deduplicated issue preserves multi-lane provenance in owners, including each reporting reviewer",
+      "The deduplication keeps the issue merge-blocking and avoids dropping actionable fix guidance"
     ]
   }
 ]

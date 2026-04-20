@@ -147,6 +147,87 @@ class SkillContentTests(unittest.TestCase):
         self.assertIn("subagent", skill_text.lower())
         self.assertIn("main harness", skill_text.lower())
 
+    def test_final_orchestrated_result_requires_open_questions(self) -> None:
+        schema_text = (SKILL_ROOT / "references" / "output-schema.md").read_text()
+        template_text = (SKILL_ROOT / "references" / "review-template.md").read_text()
+
+        self.assertIn("open_questions", schema_text)
+        required_keys_section = self._section_text(
+            schema_text, "## Final orchestrated result required top-level keys"
+        )
+        self.assertIn("`open_questions`", required_keys_section)
+        self.assertIn(
+            "Every final orchestrated result must include `merge_recommendation`, `top_must_fix_issues`, `important_follow_ups`, `reviewed_with_no_major_issues`, `suggested_tests_before_merge`, `open_questions`, and `executive_summary`.",
+            schema_text,
+        )
+
+        orchestrator_template = self._section_text(
+            template_text, "## Orchestrator synthesis template"
+        )
+        self.assertIn("open_questions", orchestrator_template)
+
+    def test_skill_and_playbook_require_review_bundle_preflight(self) -> None:
+        skill_text = (SKILL_ROOT / "SKILL.md").read_text().lower()
+        playbook_text = (
+            SKILL_ROOT / "references" / "orchestrator-playbook.md"
+        ).read_text().lower()
+
+        self.assertIn("preflight", skill_text)
+        self.assertIn("review bundle", skill_text)
+        self.assertRegex(skill_text, r"missing .*artifact")
+        self.assertRegex(skill_text, r"ask .*before dispatch")
+        self.assertIn("open_questions", skill_text)
+        self.assertIn("executive_summary", skill_text)
+
+        self.assertIn("preflight", playbook_text)
+        self.assertIn("review bundle", playbook_text)
+        self.assertRegex(playbook_text, r"missing .*artifact")
+        self.assertRegex(playbook_text, r"ask .*before dispatch")
+        self.assertIn("open_questions", playbook_text)
+        self.assertIn("executive_summary", playbook_text)
+
+    def test_openai_default_prompt_names_orchestrator_and_review_bundle(self) -> None:
+        openai_yaml = (SKILL_ROOT / "agents" / "openai.yaml").read_text().lower()
+
+        self.assertIn("default_prompt", openai_yaml)
+        self.assertIn("orchestrator", openai_yaml)
+        self.assertIn("review bundle", openai_yaml)
+        self.assertIn("return only the final raw json object", openai_yaml)
+
+    def test_adversarial_prompt_places_reproduction_idea_on_each_issue(self) -> None:
+        personas = (SKILL_ROOT / "references" / "reviewer-personas.md").read_text()
+        output_body = self._output_body(personas, "### Adversarial reviewer")
+        lowered = output_body.lower()
+
+        self.assertRegex(
+            lowered,
+            r"`issues`:[^\n]*reproduction_idea",
+            msg="Adversarial output rules should place reproduction_idea under each issue.",
+        )
+        self.assertNotIn(
+            "`reproduction_idea`: include concrete reproduction ideas",
+            output_body,
+            msg="Adversarial prompt should not imply reproduction_idea is a top-level key.",
+        )
+
+    def test_output_schema_tells_reviewers_to_omit_unused_optional_fields(self) -> None:
+        schema_text = (SKILL_ROOT / "references" / "output-schema.md").read_text().lower()
+
+        self.assertIn(
+            "omit optional issue fields when they are not needed",
+            schema_text,
+        )
+        self.assertIn(
+            "omit optional persona-specific top-level arrays when they are not needed",
+            schema_text,
+        )
+        self.assertNotIn('"trigger_condition": ""', schema_text)
+        self.assertNotIn('"likely_impact": ""', schema_text)
+        self.assertNotIn('"affected_contract": ""', schema_text)
+        self.assertNotIn('"breakage_scenario": ""', schema_text)
+        self.assertNotIn('"rollout_caution": ""', schema_text)
+        self.assertNotIn('"reproduction_idea": ""', schema_text)
+
     def test_skill_frontmatter_version_matches_package_version(self) -> None:
         skill_text = (SKILL_ROOT / "SKILL.md").read_text()
         frontmatter = skill_text.split("---", 2)[1]
@@ -175,6 +256,52 @@ class SkillContentTests(unittest.TestCase):
                 "clean-refactor-no-findings",
             }.issubset(eval_names)
         )
+
+    def test_evals_cover_additional_synthesis_and_routing_cases(self) -> None:
+        evals = json.loads((SKILL_ROOT / "evals" / "evals.json").read_text())
+        eval_names = {entry["name"] for entry in evals}
+
+        self.assertTrue(
+            {
+                "clean-lanes-listed-in-reviewed-with-no-major-issues",
+                "follow-up-risks-yield-approve-with-follow-ups",
+                "payments-or-public-endpoint-adds-adversarial-review",
+            }.issubset(eval_names)
+        )
+
+    def test_evals_cover_incomplete_context_and_dedup_cases(self) -> None:
+        evals = json.loads((SKILL_ROOT / "evals" / "evals.json").read_text())
+        eval_by_name = {entry["name"]: entry for entry in evals}
+
+        self.assertTrue(
+            {
+                "missing-review-bundle-prompts-for-context-or-flags-limitation",
+                "deduplicated-finding-preserves-multi-lane-owners",
+            }.issubset(eval_by_name)
+        )
+
+        incomplete_context_eval = eval_by_name[
+            "missing-review-bundle-prompts-for-context-or-flags-limitation"
+        ]
+        self.assertIn("incomplete", incomplete_context_eval["prompt"].lower())
+        self.assertIn("no code diff", incomplete_context_eval["prompt"].lower())
+        self.assertIn("no test output", incomplete_context_eval["prompt"].lower())
+        self.assertTrue(
+            any("before dispatch" in check.lower() for check in incomplete_context_eval["checks"])
+        )
+        self.assertTrue(
+            any(
+                "open_questions" in check and "executive_summary" in check
+                for check in incomplete_context_eval["checks"]
+            )
+        )
+
+        dedup_eval = eval_by_name["deduplicated-finding-preserves-multi-lane-owners"]
+        self.assertIn("deduplicate", dedup_eval["prompt"].lower())
+        self.assertTrue(
+            any("top_must_fix_issues" in check for check in dedup_eval["checks"])
+        )
+        self.assertTrue(any("owners" in check for check in dedup_eval["checks"]))
 
     def test_evals_have_required_keys_and_non_empty_values(self) -> None:
         evals = json.loads((SKILL_ROOT / "evals" / "evals.json").read_text())

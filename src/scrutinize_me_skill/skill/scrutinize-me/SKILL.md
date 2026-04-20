@@ -15,6 +15,8 @@ The main harness is the orchestrator. It owns reviewer selection, subagent dispa
 
 Progress:
 - [ ] Collect the full review bundle: diff, changed files, intent, tests, acceptance criteria, and migration notes.
+- [ ] Run a preflight on the review bundle to verify present artifacts and identify missing artifacts.
+- [ ] Ask for missing critical artifacts before dispatch when they block reliable review.
 - [ ] Load [references/orchestrator-playbook.md](references/orchestrator-playbook.md) and choose the required reviewer personas.
 - [ ] Dispatch one subagent per selected persona in parallel.
 - [ ] Require each subagent to return the reviewer result shape from [references/output-schema.md](references/output-schema.md).
@@ -35,6 +37,7 @@ Progress:
 - Every reviewer issue must carry an explicit `merge_blocking` decision so the orchestrator does not guess blockers from severity alone.
 - Lead with evidence-backed findings and a merge recommendation.
 - Separate must-fix issues from follow-up work, and explicitly call out reviewed areas with no major issues.
+- If required context is incomplete, capture unresolved missing-artifact limits in final `open_questions`; reflect merge-impacting uncertainty in `executive_summary`.
 - If no findings survive synthesis, say so directly and mention residual test or rollout risk.
 
 ## Progressive Disclosure

@@ -36,10 +36,11 @@ You have structured outputs from multiple specialized reviewer subagents. Your j
 - produce one final merged review
 
 Use the final orchestrated result shape from references/output-schema.md and return one single valid JSON object matching that shape.
-Return `merge_recommendation`, `top_must_fix_issues`, `important_follow_ups`, `reviewed_with_no_major_issues`, `suggested_tests_before_merge`, and `executive_summary`.
+Return `merge_recommendation`, `top_must_fix_issues`, `important_follow_ups`, `reviewed_with_no_major_issues`, `suggested_tests_before_merge`, `open_questions`, and `executive_summary`.
 Only issues with `merge_blocking: true` belong in `top_must_fix_issues`.
 Keep merge-blocking regressions and other specialist blockers as structured entries in `top_must_fix_issues`.
 Fold only non-blocking specialist-reviewer details into the generic final fields instead of inventing new keys.
+If context is incomplete, include unresolved missing-artifact limits in `open_questions` and reflect merge-risk uncertainty in `executive_summary`.
 Do not include markdown, code fences, headings, or commentary outside the JSON object.
 ```
 
