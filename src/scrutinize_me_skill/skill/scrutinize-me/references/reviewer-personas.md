@@ -2,6 +2,19 @@
 
 Use one subagent per persona. The orchestrator must not collapse these into one generic review pass.
 
+## Shared reviewer result rules
+
+Every reviewer returns the reviewer result shape from `references/output-schema.md`.
+
+- Set top-level `agent` to your reviewer identifier: `correctness`, `security`, `performance and reliability`, `architecture and maintainability`, `contracts and data`, `adversarial`, `regression`, or `test-quality`.
+- Include top-level `summary`, `issues`, and `open_questions`. Use `[]` for `open_questions` when nothing is truly blocking.
+- Add persona-specific top-level arrays only when your lane needs them.
+- Use `severity`: `critical`, `high`, `medium`, or `low`.
+- Use `confidence`: `high`, `medium`, or `low`.
+- Always set `merge_blocking` explicitly on every issue.
+- Use `function` for the nearest callable, route, symbol, migration, or test name. If no sensible symbol exists, set `function` to `""` and use `location_context`.
+- Keep findings evidence-backed and scoped to your assigned review lane.
+
 ## Core reviewers
 
 ### Correctness
@@ -32,13 +45,14 @@ Rules:
   6. why_it_matters
   7. smallest_fix
   8. test_needed
+  9. merge_blocking
 
 Output:
 - Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
 - Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
-- Summary: 2-4 sentences
-- Top issues: up to 5
-- Open questions: only if truly blocking
+- `summary`: 2-4 sentences
+- `issues`: up to 5
+- `open_questions`: only if truly blocking
 ```
 
 ### Security
@@ -74,15 +88,16 @@ For each issue, include:
 6. why_it_matters
 7. smallest_fix
 8. test_needed
-9. attack_scenario
-10. mitigation_scope (`code`, `config`, or `infra`)
+9. merge_blocking
+10. attack_scenario
+11. mitigation_scope (`code`, `config`, or `infra`)
 
 Output:
 - Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
 - Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
-- Summary
-- Top issues: up to 5
-- Residual risks: use `residual_risks`
+- `summary`
+- `issues`: up to 5
+- `residual_risks`: use `residual_risks`
 ```
 
 ### Performance and reliability
@@ -119,15 +134,16 @@ For each issue, include:
 6. why_it_matters
 7. smallest_fix
 8. test_needed
-9. trigger_condition
-10. likely_impact
+9. merge_blocking
+10. trigger_condition
+11. likely_impact
 
 Output:
 - Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
 - Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
-- Summary
-- Top issues: up to 5
-- Production-readiness notes: use `production_readiness_notes`
+- `summary`
+- `issues`: up to 5
+- `production_readiness_notes`: use `production_readiness_notes`
 ```
 
 ### Architecture and maintainability
@@ -167,9 +183,9 @@ For each issue, include:
 Output:
 - Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
 - Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
-- Summary
-- Top issues: up to 5
-- Suggested refactor follow-ups: use `suggested_refactor_follow_ups`
+- `summary`
+- `issues`: up to 5
+- `suggested_refactor_follow_ups`: use `suggested_refactor_follow_ups`
 ```
 
 ### Contracts, data, and migrations
@@ -205,16 +221,17 @@ For each issue, include:
 6. why_it_matters
 7. smallest_fix
 8. test_needed
-9. affected_contract
-10. breakage_scenario
-11. rollout_caution
+9. merge_blocking
+10. affected_contract
+11. breakage_scenario
+12. rollout_caution
 
 Output:
 - Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
 - Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
-- Summary
-- Top issues: up to 5
-- Rollout cautions: use `rollout_cautions`
+- `summary`
+- `issues`: up to 5
+- `rollout_cautions`: use `rollout_cautions`
 ```
 
 ## Optional specialist reviewers
@@ -233,9 +250,25 @@ Look for:
 - sequencing failures
 - ways a malicious or careless caller could cause damage
 
+For each issue, include:
+1. severity
+2. title
+3. file
+4. function
+5. confidence
+6. why_it_matters
+7. smallest_fix
+8. test_needed
+9. merge_blocking
+10. attack_scenario
+11. reproduction_idea
+
 Output:
 - Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
-- Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object, use the shared issue keys from `references/output-schema.md`, describe only the 3 highest-risk break paths, and include concrete reproduction ideas.
+- Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
+- Use the shared issue keys from `references/output-schema.md`.
+- `issues`: describe only the 3 highest-risk break paths.
+- `reproduction_idea`: include concrete reproduction ideas
 ```
 
 ### Regression reviewer
@@ -251,13 +284,27 @@ Focus on:
 - changed API responses
 - removed edge-case handling
 
+For each issue, include:
+1. severity
+2. title
+3. file
+4. function
+5. confidence
+6. why_it_matters
+7. smallest_fix
+8. test_needed
+9. merge_blocking
+10. affected_contract when an external contract changed
+11. breakage_scenario when old and new behavior diverge in a risky way
+12. rollout_caution when deployment sequencing matters
+
 Output:
 - Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
 - Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
 - Use the shared issue keys from `references/output-schema.md`.
-- Intended behavior changes
-- Suspected unintended regressions
-- Tests needed to lock behavior
+- `intended_behavior_changes`: use `intended_behavior_changes`
+- `suspected_unintended_regressions`: use `suspected_unintended_regressions`
+- `highest_value_tests_to_add_first`: tests needed to lock behavior
 ```
 
 ### Test-quality reviewer
@@ -274,11 +321,22 @@ Focus on:
 - missing integration coverage
 - missing migration/rollback/load/security tests
 
+For each issue, include:
+1. severity
+2. title
+3. file
+4. function
+5. confidence
+6. why_it_matters
+7. smallest_fix
+8. test_needed
+9. merge_blocking
+
 Output:
 - Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
 - Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
 - Use the shared issue keys from `references/output-schema.md`.
-- Coverage gaps
-- Fragile tests
-- Highest-value tests to add first
+- `coverage_gaps`: use `coverage_gaps`
+- `fragile_tests`: use `fragile_tests`
+- `highest_value_tests_to_add_first`: use `highest_value_tests_to_add_first`
 ```

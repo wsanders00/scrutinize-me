@@ -17,7 +17,7 @@ Progress:
 - [ ] Collect the full review bundle: diff, changed files, intent, tests, acceptance criteria, and migration notes.
 - [ ] Load [references/orchestrator-playbook.md](references/orchestrator-playbook.md) and choose the required reviewer personas.
 - [ ] Dispatch one subagent per selected persona in parallel.
-- [ ] Require each subagent to return findings in the shared shape from [references/output-schema.md](references/output-schema.md).
+- [ ] Require each subagent to return the reviewer result shape from [references/output-schema.md](references/output-schema.md).
 - [ ] Deduplicate overlap, resolve conflicts, and produce one final merged review.
 
 ## Reviewer Selection
@@ -30,7 +30,9 @@ Progress:
 
 - The main harness must behave as the orchestrator, not as another reviewer persona.
 - Subagents generate persona-scoped findings; the orchestrator merges them into the final answer.
-- Reviewer subagents and the final orchestrated result must be raw JSON matching [references/output-schema.md](references/output-schema.md), with no markdown, code fences, or commentary outside the JSON object.
+- Reviewer subagents must return the reviewer result shape from [references/output-schema.md](references/output-schema.md), and the final answer must return the final orchestrated result shape from the same file.
+- Reviewer subagents and the final orchestrated result must be raw JSON only, with no markdown, code fences, or commentary outside the JSON object.
+- Every reviewer issue must carry an explicit `merge_blocking` decision so the orchestrator does not guess blockers from severity alone.
 - Lead with evidence-backed findings and a merge recommendation.
 - Separate must-fix issues from follow-up work, and explicitly call out reviewed areas with no major issues.
 - If no findings survive synthesis, say so directly and mention residual test or rollout risk.
