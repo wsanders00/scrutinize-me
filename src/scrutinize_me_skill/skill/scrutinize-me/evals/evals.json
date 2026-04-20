@@ -48,9 +48,63 @@
     "name": "shared-schema-covers-persona-fields",
     "prompt": "Use $scrutinize-me to review a change where the security, performance, architecture, and contracts reviewers each need persona-specific JSON fields in addition to the shared issue shape. You are the orchestrator and must keep all reviewer output compatible with one shared schema.",
     "checks": [
-      "The reviewer schema supports persona-specific issue fields such as attack_scenario, trigger_condition, and affected_contract",
-      "The reviewer schema documents persona-specific top-level arrays such as residual_risks, production_readiness_notes, suggested_refactor_follow_ups, and rollout_cautions",
-      "Reviewer prompts point back to the shared schema instead of inventing incompatible ad hoc keys"
+      "The reviewer schema supports persona-specific issue fields such as location_context, attack_scenario, trigger_condition, affected_contract, and reproduction_idea",
+      "The reviewer schema documents persona-specific top-level arrays such as residual_risks, production_readiness_notes, suggested_refactor_follow_ups, rollout_cautions, intended_behavior_changes, suspected_unintended_regressions, coverage_gaps, fragile_tests, and highest_value_tests_to_add_first",
+      "Reviewer prompts point back to the shared schema instead of inventing incompatible ad hoc keys, and every issue carries an explicit merge_blocking decision"
+    ]
+  },
+  {
+    "name": "raw-json-only-output-contract",
+    "prompt": "Use $scrutinize-me to review this change. You are the orchestrator. Run any required reviewers, but return only the final raw JSON object with no markdown fences, preamble, or trailing commentary.",
+    "checks": [
+      "The final answer is raw JSON only with no markdown or prose outside the object",
+      "Reviewer prompts and the default entry prompt reinforce the raw-JSON-only contract",
+      "The orchestrator returns the final orchestrated result shape rather than a reviewer result object"
+    ]
+  },
+  {
+    "name": "non-code-review-uses-location-context",
+    "prompt": "Use $scrutinize-me to review a change that edits YAML config, a JSON schema, and a Markdown prompt file. You are the orchestrator. The review must not invent fake function names for artifacts that have no callable symbols.",
+    "checks": [
+      "The schema allows reviewers to set function to an empty string and use location_context for precise non-code locations",
+      "Reviewer instructions explicitly tell subagents how to report config, schema, and prompt findings without hallucinated symbols",
+      "Merged blocker findings may preserve location_context when file and function are not precise enough"
+    ]
+  },
+  {
+    "name": "specialist-reviewers-fold-into-final-shape",
+    "prompt": "Use $scrutinize-me to review a change that touches public APIs, adds risky defaults, and rewrites tests. You are the orchestrator. Run the default five reviewers plus regression and test-quality, then synthesize everything back into the final shared response shape.",
+    "checks": [
+      "Non-blocking regression-specific outputs such as intended behavior changes and suspected unintended regressions are folded into the generic final fields instead of ad hoc keys",
+      "Test-quality outputs such as coverage gaps and highest-value tests to add first are folded into important follow-ups or suggested tests before merge",
+      "Only issues marked merge_blocking true appear in top_must_fix_issues"
+    ]
+  },
+  {
+    "name": "top-level-json-contract-explicit",
+    "prompt": "Use $scrutinize-me to review this change. You are the orchestrator. The reviewer outputs and final merged output must each include all required top-level keys and preserve reviewer provenance explicitly rather than relying on examples.",
+    "checks": [
+      "The reviewer result contract explicitly requires agent, summary, issues, and open_questions",
+      "The final orchestrated result contract explicitly requires merge_recommendation, top_must_fix_issues, important_follow_ups, reviewed_with_no_major_issues, suggested_tests_before_merge, and executive_summary",
+      "Merged blocker findings preserve reviewer provenance through an explicit owners field"
+    ]
+  },
+  {
+    "name": "blocking-regression-stays-structured",
+    "prompt": "Use $scrutinize-me to review a change where the regression reviewer finds a merge-blocking API break. You are the orchestrator. Keep the blocker as a structured issue instead of summarizing it away.",
+    "checks": [
+      "A merge-blocking regression remains a structured entry in top_must_fix_issues",
+      "Only non-blocking regression context is folded into important_follow_ups or executive_summary",
+      "The merge recommendation is driven by merge_blocking true findings rather than inferred severity labels"
+    ]
+  },
+  {
+    "name": "reviewer-result-uses-exact-schema-keys",
+    "prompt": "Use $scrutinize-me to review a change and inspect the reviewer-result contract carefully. The reviewer prompts must tell subagents to use the schema's exact field names rather than humanized labels like Summary or Top issues.",
+    "checks": [
+      "Reviewer prompts use exact schema keys such as summary, issues, and open_questions instead of human-labeled variants",
+      "Persona-specific top-level arrays are referenced by exact key names such as residual_risks, production_readiness_notes, and rollout_cautions",
+      "Optional specialist reviewers also point subagents at exact schema keys like intended_behavior_changes, suspected_unintended_regressions, coverage_gaps, and highest_value_tests_to_add_first"
     ]
   }
 ]
