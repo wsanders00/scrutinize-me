@@ -267,8 +267,7 @@ Output:
 - Return one single valid JSON object matching the reviewer result schema in `references/output-schema.md`.
 - Do not include markdown, code fences, headings, or commentary outside the JSON object. Within that JSON object:
 - Use the shared issue keys from `references/output-schema.md`.
-- `issues`: describe only the 3 highest-risk break paths.
-- `reproduction_idea`: include concrete reproduction ideas
+- `issues`: describe only the 3 highest-risk break paths, and include a concrete `reproduction_idea` on each issue.
 ```
 
 ### Regression reviewer

@@ -14,14 +14,22 @@ Provide reviewers with as much of this bundle as possible:
 - schema or migration notes
 - logs or screenshots for behavior changes
 
+## Preflight and missing context
+
+- Run a preflight check on the review bundle before dispatch.
+- Verify which required review bundle artifacts are present and which are missing.
+- Ask for missing critical artifacts before dispatch when they block reliable review.
+- If review must proceed with incomplete context, carry those limitations into final `open_questions` and, when merge posture is affected, call out the uncertainty in `executive_summary`.
+
 ## Default workflow
 
 1. Collect the review bundle.
-2. Run the five core reviewers in parallel.
-3. Add optional specialist reviewers only when their trigger conditions are met.
-4. Require all subagents to return the reviewer result shape from `references/output-schema.md`.
-5. Merge duplicate findings, resolve conflicts, and rank by actual merge risk.
-6. Produce one final review with a merge recommendation.
+2. Run preflight: verify present artifacts, flag missing items, and request missing critical artifacts before dispatch.
+3. Run the five core reviewers in parallel.
+4. Add optional specialist reviewers only when their trigger conditions are met.
+5. Require all subagents to return the reviewer result shape from `references/output-schema.md`.
+6. Merge duplicate findings, resolve conflicts, and rank by actual merge risk.
+7. Produce one final review with a merge recommendation.
 
 ## Optional reviewer trigger matrix
 

@@ -17,6 +17,7 @@ Use these shapes to normalize subagent output before the orchestrator merges fin
 - `issues`: array of persona-scoped findings. Use `[]` when no issues survive review.
 - `open_questions`: blocking uncertainties only. Use `[]` when none remain.
 - Include persona-specific top-level arrays only when the assigned lane needs them.
+- Omit optional persona-specific top-level arrays when they are not needed.
 
 ## Final orchestrated result required top-level keys
 
@@ -25,6 +26,7 @@ Use these shapes to normalize subagent output before the orchestrator merges fin
 - `important_follow_ups`: non-blocking but meaningful issues or rollout notes that should not be forgotten.
 - `reviewed_with_no_major_issues`: reviewer lanes that were examined and produced no surviving major findings.
 - `suggested_tests_before_merge`: highest-value remaining tests to add before merge.
+- `open_questions`: unresolved context gaps, missing-artifact blockers, or critical uncertainties that still need answers.
 - `executive_summary`: short synthesis of the actual merge posture after deduplication.
 
 ## Reviewer result
@@ -46,25 +48,13 @@ Use these shapes to normalize subagent output before the orchestrator merges fin
       "test_needed": "Integration test for non-admin access denial",
       "merge_blocking": true,
       "attack_scenario": "A non-admin caller invokes the admin endpoint directly.",
-      "mitigation_scope": "code",
-      "trigger_condition": "",
-      "likely_impact": "",
-      "affected_contract": "",
-      "breakage_scenario": "",
-      "rollout_caution": "",
-      "reproduction_idea": ""
+      "mitigation_scope": "code"
     }
   ],
   "open_questions": [],
-  "residual_risks": [],
-  "production_readiness_notes": [],
-  "suggested_refactor_follow_ups": [],
-  "rollout_cautions": [],
-  "intended_behavior_changes": [],
-  "suspected_unintended_regressions": [],
-  "coverage_gaps": [],
-  "fragile_tests": [],
-  "highest_value_tests_to_add_first": []
+  "residual_risks": [
+    "No rate-limit controls were added for this endpoint in this change."
+  ]
 }
 ```
 
@@ -92,6 +82,7 @@ Use these shapes to normalize subagent output before the orchestrator merges fin
   "suggested_tests_before_merge": [
     "Integration test for non-admin access denial"
   ],
+  "open_questions": [],
   "executive_summary": "One merge-blocking authorization bug remains. Other reviewed areas did not surface additional major issues."
 }
 ```
@@ -105,8 +96,10 @@ Use these shapes to normalize subagent output before the orchestrator merges fin
 - Every reviewer issue must include `severity`, `title`, `file`, `function`, `confidence`, `why_it_matters`, `smallest_fix`, `test_needed`, and `merge_blocking`.
 - Use `function` for the nearest callable or named symbol. If none exists, set `function` to `""` and use `location_context`.
 - Use the optional issue fields when the assigned persona requires them: `location_context`, `attack_scenario`, `mitigation_scope`, `trigger_condition`, `likely_impact`, `affected_contract`, `breakage_scenario`, `rollout_caution`, and `reproduction_idea`.
+- Omit optional issue fields when they are not needed. Do not emit empty strings, placeholder text, or null-like filler values.
 - Use the optional top-level arrays when the assigned persona requires them: `residual_risks`, `production_readiness_notes`, `suggested_refactor_follow_ups`, `rollout_cautions`, `intended_behavior_changes`, `suspected_unintended_regressions`, `coverage_gaps`, `fragile_tests`, and `highest_value_tests_to_add_first`.
-- Every final orchestrated result must include `merge_recommendation`, `top_must_fix_issues`, `important_follow_ups`, `reviewed_with_no_major_issues`, `suggested_tests_before_merge`, and `executive_summary`.
+- Omit optional persona-specific top-level arrays when they are not needed.
+- Every final orchestrated result must include `merge_recommendation`, `top_must_fix_issues`, `important_follow_ups`, `reviewed_with_no_major_issues`, `suggested_tests_before_merge`, `open_questions`, and `executive_summary`.
 - Every final blocker item must include `severity`, `title`, `owners`, `file`, `function`, `why_it_matters`, and `smallest_fix`.
 - `owners` must list the reviewer identifiers that support the merged finding.
 - Use `top_must_fix_issues` only for blockers.
@@ -116,3 +109,4 @@ Use these shapes to normalize subagent output before the orchestrator merges fin
 - Final merged blocker items may include `location_context` when `function` is empty or too coarse.
 - If no blockers remain, the orchestrator may return `approve` or `approve with follow-ups`.
 - If no findings survive synthesis, return empty issue lists and explain residual risk in `executive_summary`.
+- If review context is incomplete, carry unresolved missing-artifact limits in `open_questions` and summarize any merge-impacting uncertainty in `executive_summary`.
