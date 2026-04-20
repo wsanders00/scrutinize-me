@@ -2,7 +2,7 @@
 name: scrutinize-me
 description: Use when a user asks for a code review, pull request review, merge recommendation, or severity-ranked findings across correctness, security, performance, maintainability, or contract risk.
 metadata:
-  scrutinize_me_version: "0.2.0"
+  scrutinize_me_version: "0.3.0"
 ---
 
 # Scrutinize Me
