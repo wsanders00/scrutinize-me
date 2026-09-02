@@ -1,13 +1,15 @@
 ---
 name: scrutinize-me
-description: Use when a user asks for a code review, pull request review, merge recommendation, or severity-ranked findings across correctness, security, performance, maintainability, or contract risk.
+description: Use only for final, highly critical code reviews, strict merge-risk assessments, security/correctness-heavy reviews, or when the user explicitly requests a very strict multi-reviewer review with severity-ranked findings.
 metadata:
-  scrutinize_me_version: "0.3.0"
+  scrutinize_me_version: "0.3.1"
 ---
 
 # Scrutinize Me
 
 ## Overview
+
+Use this skill sparingly. It is a strict final-review harness, not the normal checkpoint review path. For routine handoff, pre-merge, or broad checkpoint review, prefer `requesting-code-review` unless the work is high criticality or the user explicitly asks for this strict review.
 
 The main harness is the orchestrator. It owns reviewer selection, subagent dispatch, finding normalization, and the final merged review. Each reviewer subagent has one narrow scope and must not comment outside it.
 

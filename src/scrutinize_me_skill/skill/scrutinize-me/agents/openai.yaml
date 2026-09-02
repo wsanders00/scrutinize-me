@@ -1,6 +1,6 @@
 interface:
   display_name: "Scrutinize Me"
-  short_description: "Parallel, risk-first code review"
-  default_prompt: "Use $scrutinize-me with the main harness acting as the orchestrator. Start by checking the review bundle for missing critical artifacts before dispatching specialized reviewers. Return only the final raw JSON object that matches the final orchestrated output schema in references/output-schema.md."
+  short_description: "Strict final critical code review"
+  default_prompt: "Use $scrutinize-me only for a final, highly critical, or explicitly strict multi-reviewer code review. The main harness must act as the orchestrator, check the review bundle for missing critical artifacts, dispatch specialized reviewers, and return only the final raw JSON object matching references/output-schema.md."
 policy:
   allow_implicit_invocation: true
