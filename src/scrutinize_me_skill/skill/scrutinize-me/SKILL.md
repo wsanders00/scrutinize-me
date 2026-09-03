@@ -2,7 +2,7 @@
 name: scrutinize-me
 description: Use only for final, highly critical code reviews, strict merge-risk assessments, security/correctness-heavy reviews, or when the user explicitly requests a very strict multi-reviewer review with severity-ranked findings.
 metadata:
-  scrutinize_me_version: "0.3.1"
+  scrutinize_me_version: "0.3.2"
 ---
 
 # Scrutinize Me

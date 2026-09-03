@@ -194,6 +194,14 @@ class SkillContentTests(unittest.TestCase):
         self.assertIn("review bundle", openai_yaml)
         self.assertIn("return only the final raw json object", openai_yaml)
 
+    def test_openai_metadata_requires_explicit_invocation(self) -> None:
+        openai_yaml = (SKILL_ROOT / "agents" / "openai.yaml").read_text()
+
+        self.assertRegex(
+            openai_yaml,
+            r"(?m)^\s+allow_implicit_invocation:\s*false\s*$",
+        )
+
     def test_adversarial_prompt_places_reproduction_idea_on_each_issue(self) -> None:
         personas = (SKILL_ROOT / "references" / "reviewer-personas.md").read_text()
         output_body = self._output_body(personas, "### Adversarial reviewer")
