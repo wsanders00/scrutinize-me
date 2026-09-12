@@ -9,14 +9,19 @@ uses another validator must enforce them as well.
 - Only contract version `"1"` is accepted. `null`, duplicate JSON object keys,
   non-finite numbers, invalid UTF-8, and unknown object members are rejected.
 - Strings are NFC-normalized and CRLF/CR line endings become LF. Location,
-  artifact name/content, and path-like fields are trimmed; `file` also
-  converts backslashes to `/`.
-- `touched_files` and final string arrays are normalized, deduplicated, and
-  sorted by UTF-8 bytes. Reviewer IDs use the fixed order: correctness,
+  artifact name/content, and path-like fields are trimmed; `file` and
+  `touched_files` also convert backslashes to `/`.
+- `touched_files` are canonical repo-relative paths: they have no absolute or
+  drive-qualified prefix, NUL, empty component, `.` component, or `..`
+  component. Duplicate touched paths are rejected after normalization. Final
+  string arrays are normalized, deduplicated, and sorted by UTF-8 bytes.
+  Reviewer IDs use the fixed order: correctness,
   security, performance and reliability, architecture and maintainability,
   contracts and data, adversarial, regression, test-quality.
 - JCS-compatible UTF-8 bytes are used for deterministic equality and finding
-  IDs. v1 contract values contain no floating-point fields.
+  IDs. Timeout fields use JSON Schema integer semantics: finite,
+  mathematically integral numbers normalize to integers; fractional and
+  non-finite numbers are rejected.
 
 ## Bundle cross-fields
 
@@ -80,8 +85,9 @@ uses another validator must enforce them as well.
 
 Capabilities are host-owned constructor/configuration input, never bundle data
 or interpolated reviewer instructions. Four boolean flags default false;
-timeouts are reviewer/synthesis 1–300 seconds (default 60) and aggregate
-deadline 1–900 seconds (default 300). Required capability names are unique,
+timeouts are finite, mathematically integral reviewer/synthesis values from
+1–300 seconds (default 60) and aggregate deadline values from 1–900 seconds
+(default 300). Required capability names are unique,
 limited to the four flags, and checked in canonical order against the separate
 host-owned `available_capabilities` sequence. Phase 1 has no command runner.
 

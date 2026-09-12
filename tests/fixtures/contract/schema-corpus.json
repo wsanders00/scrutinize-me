@@ -57,7 +57,11 @@
       "open_questions": [],
       "executive_summary": "No merge-blocking findings remain."
     },
-    "capabilities": {}
+    "capabilities": {
+      "reviewer_timeout_seconds": 1.0,
+      "synthesis_timeout_seconds": 1e0,
+      "review_deadline_seconds": 9.0
+    }
   },
   "invalid": [
     {
@@ -132,6 +136,13 @@
       "name": "out-of-range timeout",
       "value": {"reviewer_timeout_seconds": 0},
       "code": "preflight_invalid",
+      "path": "/reviewer_timeout_seconds"
+    },
+    {
+      "kind": "capabilities",
+      "name": "fractional timeout",
+      "value": {"reviewer_timeout_seconds": 1.5},
+      "code": "schema_violation",
       "path": "/reviewer_timeout_seconds"
     }
   ]

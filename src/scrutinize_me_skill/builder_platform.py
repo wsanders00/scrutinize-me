@@ -100,3 +100,16 @@ def validate_not_within_source(path: Path, source_root: Path, *, label: str) -> 
     except ValueError:
         return
     raise ValueError(f"{label} cannot be inside the skill source directory: {path}")
+
+
+def validate_no_path_overlap(first: Path, second: Path, *, label: str) -> None:
+    resolved_first = first.resolve(strict=False)
+    resolved_second = second.resolve(strict=False)
+    try:
+        resolved_first.relative_to(resolved_second)
+    except ValueError:
+        try:
+            resolved_second.relative_to(resolved_first)
+        except ValueError:
+            return
+    raise ValueError(f"{label} overlaps the skill source directory: {first}")

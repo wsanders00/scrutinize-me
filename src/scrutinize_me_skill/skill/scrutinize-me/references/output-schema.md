@@ -33,7 +33,9 @@ The only allowed top-level keys are `contract_version`, `diff`,
 exactly either `{status: "available", content: string}` with non-empty content
 or `{status: "unavailable", reason: string}` with a bounded non-empty reason.
 `touched_files` and `intent` are non-empty after normalization. Touched files
-are repo-relative, use `/`, and are unique.
+are canonical repo-relative paths: they use `/`, have no absolute or
+drive-qualified prefix, NUL, empty component, `.` component, or `..` component,
+and are unique after normalization.
 
 `artifact_presence` has exactly the five keys shown above, each with `present`
 or `absent`. Optional artifact fields are omitted or `[]` when absent. When
@@ -183,7 +185,8 @@ invariants before any table row above applies.
 
 Capabilities are constructed by the host outside the bundle. The trusted
 configuration has boolean `allow_commands`, `allow_network`, `allow_writes`,
-and `allow_global_install` flags, all defaulting to `false`, plus integer
+and `allow_global_install` flags, all defaulting to `false`, plus finite,
+mathematically integral JSON integer values for
 `reviewer_timeout_seconds` (1–300, default 60),
 `synthesis_timeout_seconds` (1–300, default 60), and
 `review_deadline_seconds` (1–900, default 300). Host-only

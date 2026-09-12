@@ -575,6 +575,26 @@ class MaterializeSkillTests(unittest.TestCase):
 
             self.assertIn("source directory", str(context.exception))
 
+    def test_materialize_skill_rejects_source_nested_under_destination_before_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            target_root = root / "target"
+            skill_root = self._make_skill_root(target_root / SKILL_NAME / "nested")
+            source_marker = skill_root / "SKILL.md"
+            destination = target_root / SKILL_NAME
+
+            with mock.patch(
+                "scrutinize_me_skill.builder.skill_source_dir",
+                return_value=skill_root,
+            ):
+                with self.assertRaises(ValueError):
+                    materialize_skill(target_root, force=True)
+
+            self.assertTrue(source_marker.exists())
+            self.assertEqual(source_marker.read_text(encoding="utf-8"), "# Skill\n")
+            self.assertTrue((destination / "nested" / SKILL_NAME / "SKILL.md").exists())
+            self.assertEqual(list(target_root.glob(f".{SKILL_NAME}-*")), [])
+
     def test_materialize_skill_rejects_existing_destination_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)

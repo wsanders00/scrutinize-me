@@ -76,6 +76,7 @@ MAX_TEXT_BYTES = 64 * 1024
 MAX_REASON_BYTES = 4 * 1024
 
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
+_WINDOWS_DRIVE = re.compile(r"^[A-Za-z]:")
 
 ISSUE_REQUIRED = (
     "severity",
@@ -142,7 +143,11 @@ class ContractValidationError(ValueError):
             raise ValueError(f"unknown contract error code: {code}")
         self.code = code
         self.path = path
-        encoded = str(message).encode("utf-8")[:512]
+        try:
+            encoded = str(message).encode("utf-8")
+        except UnicodeError:
+            encoded = str(message).encode("utf-8", errors="replace")
+        encoded = encoded[:512]
         self.message = encoded.decode("utf-8", errors="ignore")
         super().__init__(f"{code} at {path or '<root>'}: {self.message}")
 
@@ -164,10 +169,16 @@ def _line_nfc(value: str) -> str:
     return unicodedata.normalize("NFC", value.replace("\r\n", "\n").replace("\r", "\n"))
 
 
+def _ensure_unicode_scalars(value: str, path: str) -> None:
+    if any(0xD800 <= ord(character) <= 0xDFFF for character in value):
+        _fail("schema_violation", path, "strings must contain Unicode scalar values")
+
+
 def _string(value: Any, path: str, *, field: str = "value", strip: bool = False) -> str:
     if not isinstance(value, str):
         _fail("schema_violation", path, f"{field} must be a string")
     result = _line_nfc(value)
+    _ensure_unicode_scalars(result, path)
     if strip:
         result = result.strip()
     return result
@@ -210,8 +221,12 @@ def _bool(value: Any, path: str, *, field: str) -> bool:
 
 
 def _integer(value: Any, path: str, *, field: str, minimum: int, maximum: int) -> int:
-    if type(value) is not int or isinstance(value, bool):
+    if isinstance(value, bool) or type(value) not in (int, float):
         _fail("schema_violation", path, f"{field} must be an integer")
+    if type(value) is float:
+        if not math.isfinite(value) or not value.is_integer():
+            _fail("schema_violation", path, f"{field} must be an integer")
+        value = int(value)
     if not minimum <= value <= maximum:
         _fail("preflight_invalid", path, f"{field} must be between {minimum} and {maximum}")
     return value
@@ -235,7 +250,10 @@ def _json_loads(value: str | bytes, *, limit: int) -> tuple[Any, int]:
         except UnicodeDecodeError as exc:
             _fail("invalid_json", "", f"invalid UTF-8: {exc}")
     elif isinstance(value, str):
-        raw = value.encode("utf-8")
+        try:
+            raw = value.encode("utf-8")
+        except UnicodeEncodeError:
+            _fail("invalid_json", "", "invalid JSON text contains non-Unicode-scalar characters")
     else:
         _fail("schema_violation", "", "contract input must be a mapping, UTF-8 JSON string, or UTF-8 JSON bytes")
     if len(raw) > limit:
@@ -264,6 +282,8 @@ def _json_number(value: Any) -> str:
     if type(value) is float:
         if not math.isfinite(value):
             raise ValueError("non-finite number")
+        if value.is_integer():
+            return str(int(value))
         # Contract values are integer/string/boolean based. This path keeps
         # the canonicalizer safe if a caller uses it for a general mapping.
         return json.dumps(value, allow_nan=False, separators=(",", ":"))
@@ -344,11 +364,13 @@ def _resource_scan(
                 _fail("resource_limit", current, "object collection exceeds its limit")
             total += len(item)
             if total > MAX_COLLECTION_ENTRIES:
-                _fail("resource_limit", current, "aggregate collection entries exceed their limit")
+                _fail("resource_limit", "", "aggregate collection entries exceed their limit")
             active_containers.add(identity)
             stack.append(("exit", identity, "", 0, False))
             children = list(item.items())
             for key, child in reversed(children):
+                if isinstance(key, str):
+                    _ensure_unicode_scalars(key, current)
                 child_path = _pointer(current, key)
                 stack.append(("enter", child, child_path, depth + 1, key == "content"))
         elif isinstance(item, (list, tuple)):
@@ -359,17 +381,20 @@ def _resource_scan(
                 _fail("resource_limit", current, "array collection exceeds its limit")
             total += len(item)
             if total > MAX_COLLECTION_ENTRIES:
-                _fail("resource_limit", current, "aggregate collection entries exceed their limit")
+                _fail("resource_limit", "", "aggregate collection entries exceed their limit")
             active_containers.add(identity)
             stack.append(("exit", identity, "", 0, False))
             for index in range(len(item) - 1, -1, -1):
                 stack.append(("enter", item[index], _pointer(current, index), depth + 1, artifact_content))
-        elif isinstance(item, str) and check_text:
-            if artifact_content:
-                # Artifact-specific byte limits are checked during semantic
-                # validation, where the encoding and field name are known.
-                continue
-            _ensure_text_limit(_line_nfc(item), current)
+        elif isinstance(item, str):
+            normalized = _line_nfc(item)
+            _ensure_unicode_scalars(normalized, current)
+            if check_text:
+                if artifact_content:
+                    # Artifact-specific byte limits are checked during semantic
+                    # validation, where the encoding and field name are known.
+                    continue
+                _ensure_text_limit(normalized, current)
 
 
 def _prepare(value: Any, *, kind: str) -> dict[str, Any]:
@@ -391,6 +416,18 @@ def _prepare(value: Any, *, kind: str) -> dict[str, Any]:
         _fail("schema_violation", "", f"{kind} must be a JSON object")
     _resource_scan(result, path="", raw_size=raw_size, limit=limit, aggregate=kind == "bundle")
     return dict(result)
+
+
+def _normalize_repo_relative_path(value: Any, path: str) -> str:
+    normalized = _nonempty_string(value, path, field="touched_files item")
+    normalized = normalized.replace("\\", "/")
+    if "\x00" in normalized:
+        _fail("preflight_invalid", path, "path must not contain NUL")
+    if normalized.startswith("/") or _WINDOWS_DRIVE.match(normalized):
+        _fail("preflight_invalid", path, "path must be repo-relative")
+    if any(part in {"", ".", ".."} for part in normalized.split("/")):
+        _fail("preflight_invalid", path, "path must use canonical relative components")
+    return normalized
 
 
 def _normalized_string_list(value: Any, path: str, *, field: str) -> list[str]:
@@ -558,9 +595,9 @@ def validate_bundle(value: Any) -> dict[str, Any]:
     touched_values = _list(obj["touched_files"], "/touched_files", field="touched_files")
     touched: list[str] = []
     for index, item in enumerate(touched_values):
-        normalized = _nonempty_string(item, _pointer("/touched_files", index), field="touched_files item")
+        normalized = _normalize_repo_relative_path(item, _pointer("/touched_files", index))
         _ensure_text_limit(normalized, _pointer("/touched_files", index))
-        touched.append(normalized.replace("\\", "/"))
+        touched.append(normalized)
     if not touched:
         _fail("preflight_invalid", "/touched_files", "touched_files must not be empty")
     if len(set(touched)) != len(touched):
@@ -678,6 +715,9 @@ def _normalize_issue(value: Any, path: str) -> dict[str, Any]:
 
 def _normalize_reviewer(value: Any) -> dict[str, Any]:
     obj = _prepare(value, kind="reviewer")
+    issues = obj.get("issues")
+    if isinstance(issues, list) and len(issues) > MAX_ISSUES:
+        _fail("resource_limit", "/issues", "issue collection exceeds its limit")
     _validate_reviewer_shape(obj)
     allowed = set(REVIEWER_REQUIRED + REVIEWER_OPTIONAL_ARRAYS)
     _keys(obj, allowed, REVIEWER_REQUIRED, "")
@@ -688,8 +728,6 @@ def _normalize_reviewer(value: Any) -> dict[str, Any]:
     result["summary"] = _nonempty_string(obj["summary"], "/summary", field="summary", strip=False)
     _ensure_text_limit(result["summary"], "/summary")
     issues = _list(obj["issues"], "/issues", field="issues")
-    if len(issues) > MAX_ISSUES:
-        _fail("resource_limit", "/issues", "issue collection exceeds its limit")
     result["issues"] = [_normalize_issue(item, _pointer("/issues", index)) for index, item in enumerate(issues)]
     result["issues"].sort(key=_sort_key_issue)
     result["open_questions"] = _normalized_string_list(obj["open_questions"], "/open_questions", field="open_questions")
@@ -1071,6 +1109,9 @@ def validate_final_result(
     """Validate, normalize, and cross-check a synthesized final result."""
 
     obj = _prepare(value, kind="final")
+    blockers = obj.get("top_must_fix_issues")
+    if isinstance(blockers, list) and len(blockers) > MAX_ISSUES:
+        _fail("resource_limit", "/top_must_fix_issues", "blocker collection exceeds its limit")
     _keys(obj, set(FINAL_REQUIRED), FINAL_REQUIRED, "")
     version = obj["contract_version"]
     if not isinstance(version, str):
@@ -1088,8 +1129,6 @@ def validate_final_result(
         _fail("schema_violation", "/merge_recommendation", "invalid merge recommendation")
     result["merge_recommendation"] = recommendation
     blockers = [_normalize_final_blocker(item, _pointer("/top_must_fix_issues", index)) for index, item in enumerate(_list(obj["top_must_fix_issues"], "/top_must_fix_issues", field="top_must_fix_issues"))]
-    if len(blockers) > MAX_ISSUES:
-        _fail("resource_limit", "/top_must_fix_issues", "blocker collection exceeds its limit")
     result["top_must_fix_issues"] = sorted(blockers, key=_sort_key_blocker)
     result["important_follow_ups"] = _normalized_string_list(obj["important_follow_ups"], "/important_follow_ups", field="important_follow_ups")
     result["reviewed_with_no_major_issues"] = [_nonempty_string(item, _pointer("/reviewed_with_no_major_issues", index), field="reviewer ID") for index, item in enumerate(_list(obj["reviewed_with_no_major_issues"], "/reviewed_with_no_major_issues", field="reviewed_with_no_major_issues"))]

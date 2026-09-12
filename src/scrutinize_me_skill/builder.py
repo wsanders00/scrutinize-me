@@ -27,6 +27,7 @@ from scrutinize_me_skill.builder_fs import (
 from scrutinize_me_skill.builder_platform import (
     find_symlink_component,
     trusted_symlink_scan_base,
+    validate_no_path_overlap,
     validate_not_within_source,
     validate_write_path,
 )
@@ -169,16 +170,7 @@ def materialize_skill(target_root: Path, *, force: bool = False) -> Path:
     destination = target_root / SKILL_NAME
 
     validate_write_path(destination, label="Export destination")
-    resolved_destination = destination.resolve(strict=False)
-
-    try:
-        resolved_destination.relative_to(source_root)
-        is_within_source_root = True
-    except ValueError:
-        is_within_source_root = False
-
-    if is_within_source_root:
-        raise ValueError(f"Refusing to export into the source directory: {destination}")
+    validate_no_path_overlap(destination, source_root, label="Export destination")
 
     with ensured_directory(target_root, label="Export target root") as root_fd:
         with held_export_lock(root_fd):

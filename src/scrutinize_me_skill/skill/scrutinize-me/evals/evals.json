@@ -147,7 +147,7 @@
     "name": "deduplicated-finding-preserves-multi-lane-owners",
     "prompt": "Use $scrutinize-me to review a change where correctness and contracts-and-data reviewers both report the same merge-blocking schema break. You are the orchestrator. Deduplicate the blocker into one final issue while preserving reviewer provenance.",
     "checks": [
-      "Semantically duplicate blocker findings are merged into one top_must_fix_issues entry",
+      "Blocker findings with identical complete normalized issue payloads are merged into one top_must_fix_issues entry, while conflicting variants remain separate",
       "The deduplicated issue preserves multi-lane provenance in owners, including each reporting reviewer",
       "The deduplication keeps the issue merge-blocking and avoids dropping actionable fix guidance"
     ]

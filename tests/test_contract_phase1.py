@@ -30,6 +30,7 @@ SCHEMA_ROOT = (
 from scrutinize_me_skill.contracts import (  # noqa: E402
     CORE_REVIEWERS,
     MAX_ARTIFACT_BYTES,
+    MAX_ISSUES,
     MAX_TEXT_BYTES,
     ContractValidationError,
     REVIEWER_ORDER,
@@ -347,6 +348,27 @@ class ContractAdapterLifecycleTests(ContractTestCase):
             "/expected/selected_reviewers",
         )
 
+    def test_dispatch_classifies_surrogate_json_as_invalid(self) -> None:
+        fixture = load_fixture("default-five-reviewers")
+        bundle = validate_bundle(fixture["bundle"])
+        result, status = FakeContractAdapter().dispatch(
+            "correctness",
+            bundle,
+            {
+                "outcome": "completed",
+                "result": json.dumps(
+                    {**fixture["dispatch_results"][0]["result"], "summary": "\ud800"}
+                ),
+            },
+            60,
+        )
+        self.assertIsNone(result)
+        self.assertEqual(status["status"], "invalid")
+        self.assertEqual(
+            status["reason"],
+            "Reviewer result invalid: schema_violation at /summary.",
+        )
+
     def test_adapter_requires_the_five_core_reviewers(self) -> None:
         fixture = load_fixture("default-five-reviewers")
         fixture["expected"]["selected_reviewers"] = ["correctness"]
@@ -424,6 +446,79 @@ class ContractValidationTests(ContractTestCase):
         self.assertEqual(bundle["diff"]["content"], "diff --git a/src/api.py b/src/api.py\n+validate input")
         self.assertEqual(bundle["artifact_presence"]["tests"], "present")
         self.assertNotIn("acceptance_criteria", bundle)
+
+    def test_surrogate_text_is_rejected_with_structured_errors(self) -> None:
+        fixture = load_fixture("default-five-reviewers")
+        reviewer = fixture["dispatch_results"][0]["result"]
+        escaped_json = json.dumps({**reviewer, "summary": "\ud800"})
+        literal_surrogate_json = json.dumps(
+            {**reviewer, "summary": "\ud800"}, ensure_ascii=False
+        )
+        cases = (
+            (
+                {**reviewer, "summary": "\ud800"},
+                "schema_violation",
+                "/summary",
+            ),
+            (escaped_json, "schema_violation", "/summary"),
+            (escaped_json.encode("utf-8"), "schema_violation", "/summary"),
+            (literal_surrogate_json, "invalid_json", ""),
+            (b"\xff", "invalid_json", ""),
+            ({**reviewer, "\ud800": "value"}, "schema_violation", ""),
+        )
+        for value, code, path in cases:
+            with self.subTest(value_type=type(value).__name__):
+                self.assert_contract_error(
+                    lambda value=value: validate_reviewer_result(value, "correctness"),
+                    code,
+                    path,
+                )
+
+    def test_touched_files_are_canonical_repo_relative_paths(self) -> None:
+        fixture = load_fixture("default-five-reviewers")
+        invalid_paths = (
+            "/etc/passwd",
+            "../outside.py",
+            "C:\\outside.py",
+            "C:outside.py",
+            "//server/share/file.py",
+            "src/../../outside.py",
+            "src/./api.py",
+            "src/../api.py",
+            "src/with\x00nul.py",
+        )
+        for path in invalid_paths:
+            with self.subTest(path=path):
+                bundle = copy.deepcopy(fixture["bundle"])
+                bundle["touched_files"] = [path]
+                self.assert_contract_error(
+                    lambda bundle=bundle: validate_bundle(bundle),
+                    "preflight_invalid",
+                    "/touched_files/0",
+                )
+
+    def test_timeout_numbers_use_schema_integer_semantics(self) -> None:
+        self.assertEqual(
+            validate_capabilities({"reviewer_timeout_seconds": 1.0})[
+                "reviewer_timeout_seconds"
+            ],
+            1,
+        )
+        self.assertEqual(
+            validate_capabilities('{"reviewer_timeout_seconds":1e0}')[
+                "reviewer_timeout_seconds"
+            ],
+            1,
+        )
+        for value in (1.5, True, float("inf")):
+            with self.subTest(value=value):
+                self.assert_contract_error(
+                    lambda value=value: validate_capabilities(
+                        {"reviewer_timeout_seconds": value}
+                    ),
+                    "schema_violation",
+                    "/reviewer_timeout_seconds" if value != float("inf") else "",
+                )
 
     def test_first_error_codes_and_json_pointers_are_stable(self) -> None:
         fixture = load_fixture("default-five-reviewers")
@@ -733,6 +828,39 @@ class ContractValidationTests(ContractTestCase):
 
 
 class ContractResourceTests(ContractTestCase):
+    def test_aggregate_and_issue_collection_limits_have_stable_precedence(self) -> None:
+        self.assert_contract_error(
+            lambda: validate_capabilities({"x": [[0] * 1000 for _ in range(10)]}),
+            "resource_limit",
+            "",
+        )
+
+        fixture = load_fixture("default-five-reviewers")
+        reviewer = copy.deepcopy(fixture["dispatch_results"][0]["result"])
+        reviewer["issues"] = [{} for _ in range(MAX_ISSUES + 1)]
+        self.assert_contract_error(
+            lambda: validate_reviewer_result(reviewer, "correctness"),
+            "resource_limit",
+            "/issues",
+        )
+
+        final = copy.deepcopy(fixture["final"])
+        final["top_must_fix_issues"] = [{} for _ in range(MAX_ISSUES + 1)]
+        self.assert_contract_error(
+            lambda: validate_final_result(final),
+            "resource_limit",
+            "/top_must_fix_issues",
+        )
+
+        combined = copy.deepcopy(fixture["final"])
+        combined["top_must_fix_issues"] = [{} for _ in range(MAX_ISSUES + 1)]
+        combined["unexpected"] = True
+        self.assert_contract_error(
+            lambda: validate_final_result(combined),
+            "resource_limit",
+            "/top_must_fix_issues",
+        )
+
     def test_artifact_and_text_limits_are_enforced(self) -> None:
         fixture = load_fixture("default-five-reviewers")
         oversized_artifact = copy.deepcopy(fixture["bundle"])
