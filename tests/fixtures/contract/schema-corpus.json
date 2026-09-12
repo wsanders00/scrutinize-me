@@ -1,0 +1,138 @@
+{
+  "valid": {
+    "bundle": {
+      "contract_version": "1",
+      "diff": {
+        "status": "available",
+        "content": "diff --git a/src/example.py b/src/example.py\n+validate input"
+      },
+      "touched_files": ["src/example.py"],
+      "intent": "Validate input at the boundary.",
+      "artifact_presence": {
+        "tests": "absent",
+        "acceptance_criteria": "absent",
+        "migrations": "absent",
+        "logs": "absent",
+        "screenshots": "absent"
+      }
+    },
+    "reviewer": {
+      "agent": "correctness",
+      "summary": "No correctness issues found.",
+      "issues": [],
+      "open_questions": []
+    },
+    "final": {
+      "contract_version": "1",
+      "review_completeness": {
+        "input_status": "available",
+        "status": "complete",
+        "blocking": false,
+        "selected_reviewers": [
+          "correctness",
+          "security",
+          "performance and reliability",
+          "architecture and maintainability",
+          "contracts and data"
+        ],
+        "reviewer_statuses": [
+          {"reviewer_id": "correctness", "status": "completed"},
+          {"reviewer_id": "security", "status": "completed"},
+          {"reviewer_id": "performance and reliability", "status": "completed"},
+          {"reviewer_id": "architecture and maintainability", "status": "completed"},
+          {"reviewer_id": "contracts and data", "status": "completed"}
+        ]
+      },
+      "merge_recommendation": "approve",
+      "top_must_fix_issues": [],
+      "important_follow_ups": [],
+      "reviewed_with_no_major_issues": [
+        "correctness",
+        "security",
+        "performance and reliability",
+        "architecture and maintainability",
+        "contracts and data"
+      ],
+      "suggested_tests_before_merge": [],
+      "open_questions": [],
+      "executive_summary": "No merge-blocking findings remain."
+    },
+    "capabilities": {}
+  },
+  "invalid": [
+    {
+      "kind": "bundle",
+      "name": "unknown bundle property",
+      "value": {
+        "contract_version": "1",
+        "diff": {"status": "available", "content": "d"},
+        "touched_files": ["src/example.py"],
+        "intent": "i",
+        "artifact_presence": {
+          "tests": "absent",
+          "acceptance_criteria": "absent",
+          "migrations": "absent",
+          "logs": "absent",
+          "screenshots": "absent"
+        },
+        "extra": true
+      },
+      "code": "schema_violation",
+      "path": "/extra"
+    },
+    {
+      "kind": "reviewer",
+      "name": "unknown reviewer",
+      "value": {
+        "agent": "not-a-reviewer",
+        "summary": "s",
+        "issues": [],
+        "open_questions": []
+      },
+      "code": "schema_violation",
+      "path": "/agent"
+    },
+    {
+      "kind": "final",
+      "name": "invalid recommendation",
+      "value": {
+        "contract_version": "1",
+        "review_completeness": {
+          "input_status": "available",
+          "status": "complete",
+          "blocking": false,
+          "selected_reviewers": [
+            "correctness",
+            "security",
+            "performance and reliability",
+            "architecture and maintainability",
+            "contracts and data"
+          ],
+          "reviewer_statuses": [
+            {"reviewer_id": "correctness", "status": "completed"},
+            {"reviewer_id": "security", "status": "completed"},
+            {"reviewer_id": "performance and reliability", "status": "completed"},
+            {"reviewer_id": "architecture and maintainability", "status": "completed"},
+            {"reviewer_id": "contracts and data", "status": "completed"}
+          ]
+        },
+        "merge_recommendation": "approve maybe",
+        "top_must_fix_issues": [],
+        "important_follow_ups": [],
+        "reviewed_with_no_major_issues": [],
+        "suggested_tests_before_merge": [],
+        "open_questions": [],
+        "executive_summary": "No merge-blocking findings remain."
+      },
+      "code": "schema_violation",
+      "path": "/merge_recommendation"
+    },
+    {
+      "kind": "capabilities",
+      "name": "out-of-range timeout",
+      "value": {"reviewer_timeout_seconds": 0},
+      "code": "preflight_invalid",
+      "path": "/reviewer_timeout_seconds"
+    }
+  ]
+}

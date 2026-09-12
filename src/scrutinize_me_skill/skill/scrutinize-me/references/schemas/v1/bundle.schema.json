@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://scrutinize-me.invalid/schemas/v1/bundle.schema.json",
+  "title": "scrutinize-me v1 review bundle",
+  "examples": [
+    {
+      "contract_version": "1",
+      "diff": {"status": "available", "content": "diff --git a/src/example.py b/src/example.py\n+validate input"},
+      "touched_files": ["src/example.py"],
+      "intent": "Validate input at the boundary.",
+      "artifact_presence": {
+        "tests": "absent",
+        "acceptance_criteria": "absent",
+        "migrations": "absent",
+        "logs": "absent",
+        "screenshots": "absent"
+      }
+    }
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "diff", "touched_files", "intent", "artifact_presence"],
+  "properties": {
+    "contract_version": {"const": "1"},
+    "diff": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["status", "content"], "properties": {"status": {"const": "available"}, "content": {"type": "string", "minLength": 1}}},
+        {"type": "object", "additionalProperties": false, "required": ["status", "reason"], "properties": {"status": {"const": "unavailable"}, "reason": {"type": "string", "minLength": 1}}}
+      ]
+    },
+    "touched_files": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "intent": {"type": "string", "minLength": 1},
+    "artifact_presence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["tests", "acceptance_criteria", "migrations", "logs", "screenshots"],
+      "properties": {
+        "tests": {"enum": ["present", "absent"]},
+        "acceptance_criteria": {"enum": ["present", "absent"]},
+        "migrations": {"enum": ["present", "absent"]},
+        "logs": {"enum": ["present", "absent"]},
+        "screenshots": {"enum": ["present", "absent"]}
+      }
+    },
+    "tests": {"$ref": "#/$defs/textArtifacts"},
+    "acceptance_criteria": {"$ref": "#/$defs/textArtifacts"},
+    "migrations": {"$ref": "#/$defs/textArtifacts"},
+    "logs": {"$ref": "#/$defs/textArtifacts"},
+    "screenshots": {"$ref": "#/$defs/screenshotArtifacts"}
+  },
+  "$defs": {
+    "textArtifacts": {"type": "array", "items": {"$ref": "#/$defs/textArtifact"}},
+    "screenshotArtifacts": {"type": "array", "items": {"$ref": "#/$defs/screenshotArtifact"}},
+    "textArtifact": {
+      "type": "object", "additionalProperties": false, "required": ["name", "content", "encoding"],
+      "properties": {"name": {"type": "string", "minLength": 1}, "content": {"type": "string", "minLength": 1}, "encoding": {"const": "text"}}
+    },
+    "screenshotArtifact": {
+      "type": "object", "additionalProperties": false, "required": ["name", "content", "encoding"],
+      "properties": {"name": {"type": "string", "minLength": 1}, "content": {"type": "string", "minLength": 1}, "encoding": {"const": "base64"}}
+    }
+  }
+}

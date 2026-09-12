@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://scrutinize-me.invalid/schemas/v1/capabilities.schema.json",
+  "title": "scrutinize-me v1 trusted capability configuration",
+  "examples": [{}],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "allow_commands": {"type": "boolean", "default": false},
+    "allow_network": {"type": "boolean", "default": false},
+    "allow_writes": {"type": "boolean", "default": false},
+    "allow_global_install": {"type": "boolean", "default": false},
+    "reviewer_timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 300, "default": 60},
+    "synthesis_timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 300, "default": 60},
+    "review_deadline_seconds": {"type": "integer", "minimum": 1, "maximum": 900, "default": 300}
+  }
+}

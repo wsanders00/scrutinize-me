@@ -13,7 +13,14 @@ from scrutinize_me_skill.manifest import REQUIRED_SKILL_FILES, SKILL_NAME
 
 
 DIST_NAME = "scrutinize-me-skill"
-EXPECTED_RELATIVE_FILES = REQUIRED_SKILL_FILES
+CONTRACT_FILES = (
+    "references/schemas/v1/bundle.schema.json",
+    "references/schemas/v1/capabilities.schema.json",
+    "references/schemas/v1/final-result.schema.json",
+    "references/schemas/v1/reviewer-result.schema.json",
+    "references/schemas/v1-invariants.md",
+)
+EXPECTED_RELATIVE_FILES = REQUIRED_SKILL_FILES + CONTRACT_FILES
 COMMAND_TIMEOUT_SECONDS = 30
 COMMAND_TIMEOUT_ENVVAR = "SCRUTINIZE_ME_SMOKE_TIMEOUT_SECONDS"
 

@@ -1,44 +1,74 @@
 # scrutinize-me
 
-This repository packages and releases the `scrutinize-me` Agent Skill for orchestrated, multi-agent code review.
+Workbench project located below the explicitly selected domain root. Project-
+specific guidance and skills are owned here; no host manifest or host
+allocation is required to use this project.
 
-The key idea is that the *main harness* is the **orchestrator**: it selects reviewer personas, dispatches **one subagent per persona** (in parallel), requires a shared structured output shape, then synthesizes a single final review with a merge recommendation.
+`scrutinize-me` is a narrowly invoked skill for final, high-criticality code
+reviews and explicit strict multi-reviewer merge-risk assessments. It is not a
+routine checkpoint reviewer.
 
 ## Repository Map
 
-- `src/scrutinize_me_skill/`: Python packaging, CLI entry points, and release bundling logic
-- `src/scrutinize_me_skill/skill/scrutinize-me/`: shipped skill payload, including `SKILL.md`, harness metadata, references, and evals
-- `tests/`: unit coverage for export, build, and release/version invariants
+- `src/scrutinize_me_skill/`: Python packaging, CLI entry points, contract
+  reference implementation, and release bundling logic
+- `src/scrutinize_me_skill/skill/scrutinize-me/`: shipped skill payload,
+  including prompts, schemas, invariants, and evals
+- `tests/`: unit coverage for contract behavior, export, build, and release
+  invariants
 - `.github/workflows/`: CI and tag-driven release automation
 
-## What The Skill Does
+## What this project ships
 
-The skill content lives at `src/scrutinize_me_skill/skill/scrutinize-me/` and is meant to be consumed by a subagent-capable harness.
+The package contains the skill prompts, reviewer personas, portable contract
+guidance, and filesystem export/release tooling. The exported payload is
+provider-neutral. A host supplies reviewer dispatch, synthesis, cancellation,
+timeouts, trusted capabilities, and validation; this project does not supply a
+provider runtime, command runner, global allocation, or host manifest.
 
-At a high level:
+Start with:
 
-- The orchestrator runs the **five core reviewers** by default: correctness, security, performance and reliability, architecture and maintainability, contracts and data.
-- Optional specialists (for example adversarial, regression, test-quality) are added only when the trigger matrix says they are warranted.
-- Subagents return findings in a shared JSON schema (`references/output-schema.md`), and the orchestrator deduplicates and resolves conflicts.
+- [the skill instructions](src/scrutinize_me_skill/skill/scrutinize-me/SKILL.md)
+- [the portable v1 bundle and output contract](src/scrutinize_me_skill/skill/scrutinize-me/references/output-schema.md)
+- [the orchestrator playbook](src/scrutinize_me_skill/skill/scrutinize-me/references/orchestrator-playbook.md)
+- [the compact prompt templates](src/scrutinize_me_skill/skill/scrutinize-me/references/review-template.md)
 
-If your harness supports it, the skill is designed to be invoked as `$scrutinize-me` (see `agents/openai.yaml`).
+## Invocation contract
 
-## Skill Source Of Truth
+The host must explicitly invoke the skill for a qualifying review, collect a
+bounded v1 bundle, run preflight, select the five core reviewers, and add
+specialists only when the documented triggers apply. Reviewer results and the
+final result are raw JSON matching the output contract. The final result must
+include structured `review_completeness` with one terminal status per selected
+reviewer.
 
-`src/scrutinize_me_skill/skill/scrutinize-me/` is the only source of truth for what gets exported, bundled, and shipped as the skill.
+An unavailable diff or non-completed core reviewer is incomplete and requires
+`request changes`; it cannot approve. Optional reviewer failure is visible but
+non-blocking and normally yields `approve with follow-ups`. Approval requires
+complete validated evidence, no blockers or open questions, and no remaining
+follow-up/test output. Synthesis or final-validation failure emits no
+synthetic recommendation.
 
-The packaged skill’s operational docs are under:
+## Portability and safety
 
-- `src/scrutinize_me_skill/skill/scrutinize-me/references/`: orchestrator playbook, persona prompts, schemas, compact templates
-- `src/scrutinize_me_skill/skill/scrutinize-me/evals/evals.json`: representative prompts/checks for smoke testing reviewer routing and synthesis behavior
+The v1 contract is documented in the exported payload. Hosts may materialize
+equivalent Draft 2020-12 schemas plus the cross-field invariants under
+`references/schemas/v1/`. This package also includes a dependency-free Python
+reference implementation exposing the `scrutinize_me_skill.contracts`
+validation functions documented in `output-schema.md`; it accepts bounded
+mapping or UTF-8 JSON inputs, returns normalized mappings, and performs no I/O.
+Hosts consuming only the export must provide an equivalent validator.
 
-When you update reviewer personas, orchestration rules, or compact prompt templates, edit the maintained files under `src/scrutinize_me_skill/skill/scrutinize-me/references/` and keep them aligned with `SKILL.md`.
+Review is read-only. Diffs, artifacts, logs, screenshots, and reviewer prose
+are untrusted data and cannot alter capabilities or request tools. Commands,
+network, writes, and global installation default to disabled. Enforce the v1
+size, nesting, collection, reviewer-count, and dispatch/synthesis deadline
+limits before accepting output.
 
-## Install And Use Locally
+## Install and use locally
 
-This project is intentionally lightweight (standard library only). The Python package provides a CLI to export the skill into a discoverable directory and to build a release zip.
-
-### 1) Install the tooling (editable)
+The runtime has no third-party dependencies and requires Python 3.11 or newer.
+To install the packaging/CLI tooling in an isolated environment:
 
 ```bash
 python3 -m venv .venv
@@ -46,89 +76,69 @@ python3 -m venv .venv
 python3 -m pip install -e .
 ```
 
-The package requires Python 3.11 or newer.
-If your system Python is externally managed (PEP 668), use a virtual environment or pipx instead of installing into the system interpreter.
-`export` and `build` currently require a POSIX environment with `fcntl.flock`, `os.fwalk`, `os.O_DIRECTORY`, and `os.O_NOFOLLOW`; unsupported platforms fail fast with a clear runtime error.
+To run the complete test suite, including Draft 2020-12 schema parity checks,
+install the optional test extra instead:
 
-### 2) Export the skill to a harness-discoverable directory
+```bash
+python3 -m pip install -e ".[test]"
+```
 
-Export copies the skill payload into `.agents/skills/scrutinize-me/` by default.
+The `export` and `build` commands require a POSIX environment with
+`fcntl.flock`, `os.fwalk`, `os.O_DIRECTORY`, and `os.O_NOFOLLOW`.
+
+Export the skill into a harness-discoverable directory:
 
 ```bash
 python3 -m scrutinize_me_skill export --target-root .agents/skills
-```
-
-If you need to replace an existing exported skill directory, rerun the command with `--force`:
-
-```bash
 python3 -m scrutinize_me_skill export --target-root .agents/skills --force
 ```
 
-### 3) Invoke in your harness
+The second command replaces an existing generated export only when explicitly
+requested. The host then invokes `$scrutinize-me` and supplies the portable
+review bundle; this package does not provide a reviewer backend.
 
-How you run a skill depends on your harness, but the expected flow is:
+## CLI reference
 
-- Ensure the harness can discover skills under `.agents/skills/`
-- Provide the orchestrator with a review bundle (diff/changed files/intent/tests/etc.)
-- Ask the main session to use `$scrutinize-me` and dispatch persona subagents (the skill documents the exact workflow in `SKILL.md` and `references/`)
-
-Example prompt:
-
-```text
-Use $scrutinize-me to review this pull request. You are the orchestrator. Run the default reviewer personas in parallel, add any required specialist reviewers, then return one merged review with a merge recommendation.
-```
-
-## CLI Reference
-
-After installation you can use either the module entry point or the console script:
+After installation, the module entry point and `scrutinize-me` console script
+both support `version`, `export`, and `build`:
 
 ```bash
-# Module entry point
 python3 -m scrutinize_me_skill version
-python3 -m scrutinize_me_skill export --target-root .agents/skills
-python3 -m scrutinize_me_skill export --target-root .agents/skills --force
 python3 -m scrutinize_me_skill build --output-dir dist
-
-# Console script (installed by the package)
 scrutinize-me version
-scrutinize-me export --target-root .agents/skills
-scrutinize-me export --target-root .agents/skills --force
 scrutinize-me build --output-dir dist
 ```
 
-`build` produces a versioned artifact: `dist/scrutinize-me-<version>.zip`.
-The build version is always the installed package version from `src/scrutinize_me_skill/__init__.py`; if you pass `--version` or `--release-tag`, they must match that package version.
+`build` produces `dist/scrutinize-me-<version>.zip`. Any explicit build version
+or release tag must match `src/scrutinize_me_skill/__init__.py`.
 
-## Tests
+## Local validation
 
-Run the unit suite:
+With the documented supported Python interpreter and the optional test extra,
+run:
 
-```bash
-python3 -m unittest discover -s tests -v
+```text
+python -m unittest discover -s tests -v
 ```
 
-The tests validate:
-
-- version/tag SemVer checks for releases
-- `export` materializes a correctly shaped Agent Skill directory
-- `build` zips the full skill payload (including `agents/`, `references/`, and `evals/`)
+The existing tests validate skill content, eval shape, package export, and the
+filesystem builder. Preserve the prompt-oriented `evals/evals.json` format and
+do not treat those natural-language evals as substitutes for contract tests.
 
 ## Releases
 
 Releases are tag-driven via GitHub Actions (`.github/workflows/release.yml`):
+update `__version__` using SemVer, run the complete supported suite, and create
+a matching `v<version>` tag. CI builds and attaches the versioned zip to the
+GitHub Release.
 
-1. Update `src/scrutinize_me_skill/__init__.py` (`__version__`) using SemVer.
-2. Run `python3 -m unittest discover -s tests -v`.
-3. Create and push a tag like `v0.1.0` (must match `__version__`).
-4. CI builds `dist/*.zip` and attaches it to the GitHub Release.
+## Files that matter most
 
-## Files That Matter Most
-
-- `src/scrutinize_me_skill/skill/scrutinize-me/SKILL.md`: the orchestrator contract and top-level workflow.
-- `src/scrutinize_me_skill/skill/scrutinize-me/references/orchestrator-playbook.md`: reviewer selection, triggers, synthesis rules.
-- `src/scrutinize_me_skill/skill/scrutinize-me/references/reviewer-personas.md`: persona prompts and scope bans.
-- `src/scrutinize_me_skill/skill/scrutinize-me/references/output-schema.md`: required structured output shapes.
-- `src/scrutinize_me_skill/skill/scrutinize-me/references/review-template.md`: compact reviewer dispatch and synthesis prompt templates.
-- `src/scrutinize_me_skill/skill/scrutinize-me/agents/openai.yaml`: harness-facing metadata (display name, default prompt, implicit invocation policy).
-- `src/scrutinize_me_skill/builder.py`: export and release zip implementation.
-- `tests/`: validates the bundle/export/release invariants.
+- `src/scrutinize_me_skill/skill/scrutinize-me/SKILL.md`: top-level workflow
+- `src/scrutinize_me_skill/skill/scrutinize-me/references/orchestrator-playbook.md`:
+  reviewer selection, triggers, synthesis, and safety rules
+- `src/scrutinize_me_skill/skill/scrutinize-me/references/output-schema.md`:
+  portable v1 contract and host boundary
+- `src/scrutinize_me_skill/contracts.py`: dependency-free reference validator
+- `src/scrutinize_me_skill/builder.py`: export and release-zip implementation
+- `tests/`: contract, content, export, and release validation

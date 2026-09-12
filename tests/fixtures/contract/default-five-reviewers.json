@@ -1,0 +1,217 @@
+{
+  "bundle": {
+    "contract_version": "1",
+    "diff": {
+      "status": "available",
+      "content": "diff --git a/src/api.py b/src/api.py\r\n+validate input\r\n"
+    },
+    "touched_files": [
+      " tests/test_api.py ",
+      "src/api.py"
+    ],
+    "intent": "  Validate API input before persistence.  ",
+    "artifact_presence": {
+      "tests": "present",
+      "acceptance_criteria": "absent",
+      "migrations": "absent",
+      "logs": "present",
+      "screenshots": "absent"
+    },
+    "tests": [
+      {
+        "name": " tests/test_api.py ",
+        "content": "test malformed payloads\r\n",
+        "encoding": "text"
+      }
+    ],
+    "logs": [
+      {
+        "name": "review.log",
+        "content": "parser exercised",
+        "encoding": "text"
+      }
+    ]
+  },
+  "expected": {
+    "selected_reviewers": [
+      "correctness",
+      "security",
+      "performance and reliability",
+      "architecture and maintainability",
+      "contracts and data"
+    ],
+    "statuses": {
+      "correctness": "completed",
+      "security": "completed",
+      "performance and reliability": "completed",
+      "architecture and maintainability": "completed",
+      "contracts and data": "completed"
+    }
+  },
+  "dispatch_results": [
+    {
+      "reviewer_id": "correctness",
+      "outcome": "completed",
+      "result": {
+        "agent": "correctness",
+        "summary": "Input validation has one blocking boundary issue.",
+        "issues": [
+          {
+            "severity": "high",
+            "title": "Validate API input",
+            "file": " src\\api.py ",
+            "function": " parse_request ",
+            "confidence": "high",
+            "location_context": " line 10 ",
+            "why_it_matters": "Unvalidated input can reach persistence.",
+            "smallest_fix": "Reject malformed payloads before persistence.",
+            "test_needed": "Add malformed payload coverage.",
+            "merge_blocking": true
+          }
+        ],
+        "open_questions": [],
+        "coverage_gaps": ["Add malformed payload coverage."]
+      }
+    },
+    {
+      "reviewer_id": "security",
+      "outcome": "completed",
+      "result": {
+        "agent": "security",
+        "summary": "The same validation gap is security relevant.",
+        "issues": [
+          {
+            "severity": "high",
+            "title": "Validate API input",
+            "file": "src/api.py",
+            "function": "parse_request",
+            "confidence": "high",
+            "location_context": "line 10",
+            "why_it_matters": "Unvalidated input can reach persistence.",
+            "smallest_fix": "Reject malformed payloads before persistence.",
+            "test_needed": "Add malformed payload coverage.",
+            "merge_blocking": true
+          }
+        ],
+        "open_questions": []
+      }
+    },
+    {
+      "reviewer_id": "performance and reliability",
+      "outcome": "completed",
+      "result": {
+        "agent": "performance and reliability",
+        "summary": "Parser cost should be measured.",
+        "issues": [
+          {
+            "severity": "low",
+            "title": "Document parse cost",
+            "file": "src/api.py",
+            "function": "parse_request",
+            "confidence": "medium",
+            "why_it_matters": "A new validation path may affect latency.",
+            "smallest_fix": "Record a parser latency baseline.",
+            "test_needed": "Add parser benchmark coverage.",
+            "merge_blocking": false
+          }
+        ],
+        "open_questions": [],
+        "production_readiness_notes": ["Measure parser latency before rollout."]
+      }
+    },
+    {
+      "reviewer_id": "architecture and maintainability",
+      "outcome": "completed",
+      "result": {
+        "agent": "architecture and maintainability",
+        "summary": "The change has no additional architecture concern.",
+        "issues": [],
+        "open_questions": []
+      }
+    },
+    {
+      "reviewer_id": "contracts and data",
+      "outcome": "completed",
+      "result": {
+        "agent": "contracts and data",
+        "summary": "A conflicting fix variant needs explicit resolution.",
+        "issues": [
+          {
+            "severity": "high",
+            "title": "Validate API input",
+            "file": "src/api.py",
+            "function": "parse_request",
+            "confidence": "high",
+            "location_context": "line 10",
+            "why_it_matters": "Unvalidated input can reach persistence.",
+            "smallest_fix": "Add schema validation at the request boundary.",
+            "test_needed": "Add schema-boundary coverage.",
+            "merge_blocking": true
+          }
+        ],
+        "open_questions": []
+      }
+    }
+  ],
+  "final": {
+    "contract_version": "1",
+    "review_completeness": {
+      "input_status": "available",
+      "status": "complete",
+      "blocking": false,
+      "selected_reviewers": [
+        "correctness",
+        "security",
+        "performance and reliability",
+        "architecture and maintainability",
+        "contracts and data"
+      ],
+      "reviewer_statuses": [
+        {"reviewer_id": "correctness", "status": "completed"},
+        {"reviewer_id": "security", "status": "completed"},
+        {"reviewer_id": "performance and reliability", "status": "completed"},
+        {"reviewer_id": "architecture and maintainability", "status": "completed"},
+        {"reviewer_id": "contracts and data", "status": "completed"}
+      ]
+    },
+    "merge_recommendation": "request changes",
+    "top_must_fix_issues": [
+      {
+        "severity": "high",
+        "title": "Validate API input",
+        "owners": ["contracts and data"],
+        "file": "src/api.py",
+        "function": "parse_request",
+        "why_it_matters": "Unvalidated input can reach persistence.",
+        "smallest_fix": "Add schema validation at the request boundary.",
+        "finding_id": "6abe9a3d37a3edbb97ef5e33cbf966572d12683288643ccee6d072d9eb6e999d",
+        "location_context": "line 10"
+      },
+      {
+        "severity": "high",
+        "title": "Validate API input",
+        "owners": ["correctness", "security"],
+        "file": "src/api.py",
+        "function": "parse_request",
+        "why_it_matters": "Unvalidated input can reach persistence.",
+        "smallest_fix": "Reject malformed payloads before persistence.",
+        "finding_id": "abeeafe661fa2b892a1bb9ea38179be44c9cafd93d6a22d786639cd3b1cf41c0",
+        "location_context": "line 10"
+      }
+    ],
+    "important_follow_ups": [
+      "Document parse cost",
+      "Measure parser latency before rollout."
+    ],
+    "reviewed_with_no_major_issues": [
+      "architecture and maintainability"
+    ],
+    "suggested_tests_before_merge": [
+      "Add malformed payload coverage.",
+      "Add parser benchmark coverage.",
+      "Add schema-boundary coverage."
+    ],
+    "open_questions": [],
+    "executive_summary": "The review found a merge-blocking validation issue."
+  }
+}

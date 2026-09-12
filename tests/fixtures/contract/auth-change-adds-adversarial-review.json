@@ -1,0 +1,105 @@
+{
+  "bundle": {
+    "contract_version": "1",
+    "diff": {
+      "status": "available",
+      "content": "diff --git a/src/auth.py b/src/auth.py\n+require admin role\n"
+    },
+    "touched_files": ["src/auth.py", "src/admin.py"],
+    "intent": "Require an admin role for the privileged endpoint.",
+    "artifact_presence": {
+      "tests": "absent",
+      "acceptance_criteria": "absent",
+      "migrations": "absent",
+      "logs": "absent",
+      "screenshots": "absent"
+    }
+  },
+  "expected": {
+    "selected_reviewers": [
+      "correctness",
+      "security",
+      "performance and reliability",
+      "architecture and maintainability",
+      "contracts and data",
+      "adversarial"
+    ],
+    "statuses": {
+      "correctness": "completed",
+      "security": "completed",
+      "performance and reliability": "completed",
+      "architecture and maintainability": "completed",
+      "contracts and data": "completed",
+      "adversarial": "failed"
+    }
+  },
+  "dispatch_results": [
+    {
+      "reviewer_id": "correctness",
+      "outcome": "completed",
+      "result": {"agent": "correctness", "summary": "No correctness issue found.", "issues": [], "open_questions": []}
+    },
+    {
+      "reviewer_id": "security",
+      "outcome": "completed",
+      "result": {"agent": "security", "summary": "No security issue found.", "issues": [], "open_questions": []}
+    },
+    {
+      "reviewer_id": "performance and reliability",
+      "outcome": "completed",
+      "result": {"agent": "performance and reliability", "summary": "No performance issue found.", "issues": [], "open_questions": []}
+    },
+    {
+      "reviewer_id": "architecture and maintainability",
+      "outcome": "completed",
+      "result": {"agent": "architecture and maintainability", "summary": "No architecture issue found.", "issues": [], "open_questions": []}
+    },
+    {
+      "reviewer_id": "contracts and data",
+      "outcome": "completed",
+      "result": {"agent": "contracts and data", "summary": "No contract issue found.", "issues": [], "open_questions": []}
+    },
+    {
+      "reviewer_id": "adversarial",
+      "outcome": "failed",
+      "reason": "Reviewer dispatch failed."
+    }
+  ],
+  "final": {
+    "contract_version": "1",
+    "review_completeness": {
+      "input_status": "available",
+      "status": "incomplete",
+      "blocking": false,
+      "selected_reviewers": [
+        "correctness",
+        "security",
+        "performance and reliability",
+        "architecture and maintainability",
+        "contracts and data",
+        "adversarial"
+      ],
+      "reviewer_statuses": [
+        {"reviewer_id": "correctness", "status": "completed"},
+        {"reviewer_id": "security", "status": "completed"},
+        {"reviewer_id": "performance and reliability", "status": "completed"},
+        {"reviewer_id": "architecture and maintainability", "status": "completed"},
+        {"reviewer_id": "contracts and data", "status": "completed"},
+        {"reviewer_id": "adversarial", "status": "failed", "reason": "Reviewer dispatch failed."}
+      ]
+    },
+    "merge_recommendation": "approve with follow-ups",
+    "top_must_fix_issues": [],
+    "important_follow_ups": ["Adversarial reviewer unavailable."],
+    "reviewed_with_no_major_issues": [
+      "correctness",
+      "security",
+      "performance and reliability",
+      "architecture and maintainability",
+      "contracts and data"
+    ],
+    "suggested_tests_before_merge": [],
+    "open_questions": [],
+    "executive_summary": "Core review completed; adversarial review was unavailable."
+  }
+}

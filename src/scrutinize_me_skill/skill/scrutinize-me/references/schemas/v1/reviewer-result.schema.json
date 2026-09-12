@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://scrutinize-me.invalid/schemas/v1/reviewer-result.schema.json",
+  "title": "scrutinize-me v1 reviewer result",
+  "examples": [
+    {
+      "agent": "correctness",
+      "summary": "No correctness issues found.",
+      "issues": [],
+      "open_questions": []
+    }
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["agent", "summary", "issues", "open_questions"],
+  "properties": {
+    "agent": {"enum": ["correctness", "security", "performance and reliability", "architecture and maintainability", "contracts and data", "adversarial", "regression", "test-quality"]},
+    "summary": {"type": "string", "minLength": 1},
+    "issues": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
+    "open_questions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "residual_risks": {"$ref": "#/$defs/stringArray"},
+    "production_readiness_notes": {"$ref": "#/$defs/stringArray"},
+    "suggested_refactor_follow_ups": {"$ref": "#/$defs/stringArray"},
+    "rollout_cautions": {"$ref": "#/$defs/stringArray"},
+    "intended_behavior_changes": {"$ref": "#/$defs/stringArray"},
+    "suspected_unintended_regressions": {"$ref": "#/$defs/stringArray"},
+    "coverage_gaps": {"$ref": "#/$defs/stringArray"},
+    "fragile_tests": {"$ref": "#/$defs/stringArray"},
+    "highest_value_tests_to_add_first": {"$ref": "#/$defs/stringArray"}
+  },
+  "$defs": {
+    "stringArray": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "issue": {
+      "type": "object", "additionalProperties": false,
+      "required": ["severity", "title", "file", "function", "confidence", "why_it_matters", "smallest_fix", "test_needed", "merge_blocking"],
+      "properties": {
+        "severity": {"enum": ["critical", "high", "medium", "low"]},
+        "title": {"type": "string", "minLength": 1},
+        "file": {"type": "string"},
+        "function": {"type": "string"},
+        "confidence": {"enum": ["high", "medium", "low"]},
+        "why_it_matters": {"type": "string", "minLength": 1},
+        "smallest_fix": {"type": "string", "minLength": 1},
+        "test_needed": {"type": "string", "minLength": 1},
+        "merge_blocking": {"type": "boolean"},
+        "location_context": {"type": "string", "minLength": 1},
+        "attack_scenario": {"type": "string", "minLength": 1},
+        "mitigation_scope": {"enum": ["code", "config", "infra"]},
+        "trigger_condition": {"type": "string", "minLength": 1},
+        "likely_impact": {"type": "string", "minLength": 1},
+        "affected_contract": {"type": "string", "minLength": 1},
+        "breakage_scenario": {"type": "string", "minLength": 1},
+        "rollout_caution": {"type": "string", "minLength": 1},
+        "reproduction_idea": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}
