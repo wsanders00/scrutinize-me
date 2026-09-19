@@ -44,6 +44,21 @@ class MaterializeSkillTests(unittest.TestCase):
         )
         return skill_root
 
+    def _case_insensitive_filesystem(self, root: Path) -> bool:
+        probe = root / "CaseProbe"
+        alias = root / "caseprobe"
+        probe.mkdir()
+        try:
+            alias.mkdir()
+        except FileExistsError:
+            try:
+                return os.path.samefile(probe, alias)
+            except OSError:
+                return False
+        else:
+            alias.rmdir()
+            return False
+
     def test_materialize_skill_copies_agent_skill_layout(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             export_root = Path(tmp_dir) / ".agents" / "skills"
@@ -594,6 +609,87 @@ class MaterializeSkillTests(unittest.TestCase):
             self.assertEqual(source_marker.read_text(encoding="utf-8"), "# Skill\n")
             self.assertTrue((destination / "nested" / SKILL_NAME / "SKILL.md").exists())
             self.assertEqual(list(target_root.glob(f".{SKILL_NAME}-*")), [])
+
+    def test_materialize_skill_rejects_case_alias_of_exact_source_before_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            if not self._case_insensitive_filesystem(root):
+                self.skipTest("requires a case-insensitive temporary filesystem")
+
+            skill_root = self._make_skill_root(root / "CaseTarget")
+            target_root = root / "casetarget"
+            before_files = {
+                path.relative_to(skill_root): path.read_bytes()
+                for path in skill_root.rglob("*")
+                if path.is_file()
+            }
+            before_entries = sorted(path.name for path in target_root.iterdir())
+
+            with mock.patch(
+                "scrutinize_me_skill.builder.skill_source_dir",
+                return_value=skill_root,
+            ):
+                with self.assertRaises(ValueError):
+                    materialize_skill(target_root, force=True)
+
+            after_files = {
+                path.relative_to(skill_root): path.read_bytes()
+                for path in skill_root.rglob("*")
+                if path.is_file()
+            }
+            self.assertEqual(after_files, before_files)
+            self.assertEqual(sorted(path.name for path in target_root.iterdir()), before_entries)
+            self.assertEqual(list(target_root.glob(f".{SKILL_NAME}-*")), [])
+
+    def test_materialize_skill_rejects_case_alias_of_destructive_source_ancestor(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            if not self._case_insensitive_filesystem(root):
+                self.skipTest("requires a case-insensitive temporary filesystem")
+
+            target_root_on_disk = root / "CaseTarget"
+            skill_root = self._make_skill_root(target_root_on_disk / SKILL_NAME / "nested")
+            target_root = root / "casetarget"
+            before_files = {
+                path.relative_to(skill_root): path.read_bytes()
+                for path in skill_root.rglob("*")
+                if path.is_file()
+            }
+            before_entries = sorted(path.name for path in target_root.iterdir())
+
+            with mock.patch(
+                "scrutinize_me_skill.builder.skill_source_dir",
+                return_value=skill_root,
+            ):
+                with self.assertRaises(ValueError):
+                    materialize_skill(target_root, force=True)
+
+            after_files = {
+                path.relative_to(skill_root): path.read_bytes()
+                for path in skill_root.rglob("*")
+                if path.is_file()
+            }
+            self.assertEqual(after_files, before_files)
+            self.assertEqual(sorted(path.name for path in target_root.iterdir()), before_entries)
+            self.assertEqual(list(target_root.glob(f".{SKILL_NAME}-*")), [])
+
+    def test_materialize_skill_allows_distinct_case_sensitive_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            if self._case_insensitive_filesystem(root):
+                self.skipTest("requires a case-sensitive temporary filesystem")
+
+            skill_root = self._make_skill_root(root / "CaseTarget")
+            target_root = root / "casetarget"
+
+            with mock.patch(
+                "scrutinize_me_skill.builder.skill_source_dir",
+                return_value=skill_root,
+            ):
+                skill_dir = materialize_skill(target_root, force=True)
+
+            self.assertTrue((skill_root / "SKILL.md").exists())
+            self.assertTrue((skill_dir / "SKILL.md").exists())
 
     def test_materialize_skill_rejects_existing_destination_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

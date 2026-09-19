@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import stat
 import tempfile
 from pathlib import Path
 
@@ -102,6 +103,58 @@ def validate_not_within_source(path: Path, source_root: Path, *, label: str) -> 
     raise ValueError(f"{label} cannot be inside the skill source directory: {path}")
 
 
+def _directory_identity(path: Path) -> tuple[int, int] | None:
+    """Return the filesystem identity for an existing directory.
+
+    Missing paths are expected while validating a new export destination, so
+    they are unavailable for identity comparison.  Other filesystem errors
+    remain visible to the caller instead of being mistaken for a safe path.
+    """
+
+    try:
+        info = path.stat()
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+
+    if not stat.S_ISDIR(info.st_mode):
+        return None
+    return info.st_dev, info.st_ino
+
+
+def _existing_directory_identities(path: Path) -> set[tuple[int, int]]:
+    """Collect identities for a path and its existing directory ancestors."""
+
+    identities: set[tuple[int, int]] = set()
+    current = path
+    while True:
+        if identity := _directory_identity(current):
+            identities.add(identity)
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+    return identities
+
+
+def _filesystem_identity_overlaps(first: Path, second: Path) -> bool:
+    """Check exact/ancestor overlap using existing filesystem identities.
+
+    Only an exact path on one side is compared with the other side's
+    ancestors.  Comparing both ancestor sets would make every pair of paths
+    under a shared root appear to overlap.
+    """
+
+    first_identity = _directory_identity(first)
+    if first_identity is not None and first_identity in _existing_directory_identities(second):
+        return True
+
+    second_identity = _directory_identity(second)
+    if second_identity is not None and second_identity in _existing_directory_identities(first):
+        return True
+
+    return False
+
+
 def validate_no_path_overlap(first: Path, second: Path, *, label: str) -> None:
     resolved_first = first.resolve(strict=False)
     resolved_second = second.resolve(strict=False)
@@ -111,5 +164,6 @@ def validate_no_path_overlap(first: Path, second: Path, *, label: str) -> None:
         try:
             resolved_second.relative_to(resolved_first)
         except ValueError:
-            return
+            if not _filesystem_identity_overlaps(resolved_first, resolved_second):
+                return
     raise ValueError(f"{label} overlaps the skill source directory: {first}")
