@@ -147,6 +147,32 @@ class SkillContentTests(unittest.TestCase):
         self.assertIn("subagent", skill_text.lower())
         self.assertIn("main harness", skill_text.lower())
 
+    def test_skill_does_not_depend_on_archived_review_skill(self) -> None:
+        archived_review_skill = "requesting" + "-code-review"
+        for path in [
+            SKILL_ROOT / "SKILL.md",
+            SKILL_ROOT / "references" / "orchestrator-playbook.md",
+            SKILL_ROOT / "references" / "review-template.md",
+            SKILL_ROOT / "agents" / "openai.yaml",
+        ]:
+            self.assertNotIn(archived_review_skill, path.read_text().lower())
+
+    def test_review_artifacts_default_to_temporary_storage(self) -> None:
+        skill_text = (SKILL_ROOT / "SKILL.md").read_text().lower()
+        playbook_text = (
+            SKILL_ROOT / "references" / "orchestrator-playbook.md"
+        ).read_text().lower()
+        openai_yaml = (SKILL_ROOT / "agents" / "openai.yaml").read_text().lower()
+
+        for text in [skill_text, playbook_text, openai_yaml]:
+            self.assertIn("task-local temporary", text)
+            self.assertIn("durable", text)
+            self.assertRegex(text, r"explicitly request(?:ed|s)")
+            self.assertIn("clean", text)
+
+        self.assertIn("do not create plans, reports, logs, or screenshots", skill_text)
+        self.assertIn("do not create plans, reports, logs, or screenshots", playbook_text)
+
     def test_final_orchestrated_result_requires_open_questions(self) -> None:
         schema_text = (SKILL_ROOT / "references" / "output-schema.md").read_text()
         template_text = (SKILL_ROOT / "references" / "review-template.md").read_text()

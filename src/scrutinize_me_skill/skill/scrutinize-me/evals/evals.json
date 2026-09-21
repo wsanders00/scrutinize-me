@@ -151,5 +151,14 @@
       "The deduplicated issue preserves multi-lane provenance in owners, including each reporting reviewer",
       "The deduplication keeps the issue merge-blocking and avoids dropping actionable fix guidance"
     ]
+  },
+  {
+    "name": "review-artifacts-default-to-temporary",
+    "prompt": "Use $scrutinize-me for a strict review that includes logs, screenshots, and preflight output. Keep review inputs available for the task without creating a durable report or other project document unless the caller explicitly requests retention or an operational requirement needs it.",
+    "checks": [
+      "Logs, screenshots, preflight output, and reviewer scratch material default to chat or task-local temporary storage",
+      "Temporary review material is cleaned up when the review ends",
+      "Durable files are created only for an explicit retention request or an operational/reproducibility requirement, with an owning project location and stated purpose"
+    ]
   }
 ]

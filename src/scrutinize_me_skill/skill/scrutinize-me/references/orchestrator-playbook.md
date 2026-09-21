@@ -19,6 +19,17 @@ objects with text or canonical padded RFC 4648 base64 content. Never infer
 presence from prose. See [output-schema.md](output-schema.md) for the full
 shape, normalization, schemas/invariants guidance, and limits.
 
+## Artifact handling
+
+Review-bundle artifacts are inputs, not automatic durable documents. Keep
+preflight output, copied logs, screenshots, reviewer scratch files, and
+intermediate bundle material in the conversation or task-local temporary
+storage, then clean them up when the review ends. Create a durable file only
+when the user explicitly requests retention or an operational or
+reproducibility requirement needs one; use the owning project location and
+state its purpose. Do not create plans, reports, logs, or screenshots merely
+to record the review.
+
 ## Preflight and missing context
 
 Validate raw UTF-8/JSON, resource limits, v1 shape, semantic bundle values, and

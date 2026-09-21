@@ -11,14 +11,25 @@ metadata:
 
 Use this skill sparingly. It is a strict final-review harness, not the normal
 checkpoint review path. For routine handoff, pre-merge, or broad checkpoint
-review, prefer `requesting-code-review` unless the work is high criticality or
-the user explicitly asks for this strict review.
+review, use the project's normal review path unless the work is high
+criticality or the user explicitly asks for this strict review.
 
 The main harness is the orchestrator. It owns bundle preflight, reviewer
 selection, host-side dispatch, finding normalization, and final synthesis.
 This package supplies prompts, contract guidance, and exportable documentation;
 it does not supply a provider runtime, reviewer backend, command runner, or
 global skill allocation.
+
+## Artifact handling
+
+Review-bundle artifacts are inputs to the review, not automatic
+document-generation targets. Keep preflight output, copied logs, screenshots,
+and intermediate reviewer material in the conversation or task-local temporary
+storage, then clean them up when the review ends. Create a durable file only
+when the user explicitly requests retention or an operational or
+reproducibility requirement needs one; put it in the owning project location
+and state its purpose. Do not create plans, reports, logs, or screenshots
+merely to record the review.
 
 ## Workflow
 

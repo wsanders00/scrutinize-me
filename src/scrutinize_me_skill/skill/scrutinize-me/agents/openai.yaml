@@ -1,6 +1,6 @@
 interface:
   display_name: "Scrutinize Me"
   short_description: "Strict final critical code review"
-  default_prompt: "Use $scrutinize-me only for a final, highly critical, or explicitly strict multi-reviewer code review. The main harness must act as the orchestrator, check the review bundle for missing critical artifacts, dispatch specialized reviewers, and return only the final raw JSON object matching references/output-schema.md."
+  default_prompt: "Use $scrutinize-me only for a final, highly critical, or explicitly strict multi-reviewer code review. The main harness must act as the orchestrator, check the review bundle for missing critical artifacts, dispatch specialized reviewers, and return only the final raw JSON object matching references/output-schema.md. Keep logs, screenshots, preflight output, and reviewer scratch material in chat or task-local temporary storage, clean them up, and create durable files only when explicitly requested or operationally required."
 policy:
   allow_implicit_invocation: false
